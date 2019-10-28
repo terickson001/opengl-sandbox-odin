@@ -5,47 +5,261 @@ import "core:strings"
 import "core:strconv"
 import "core:os"
 
-_read_byte :: proc(file: os.Handle) -> u8
+char_is_alpha :: proc(c: u8) -> bool
 {
-    c: []u8;
-    os.read(file, c);
-
-    return c[0];
+    return ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z');
 }
 
-read_string :: proc(file: os.Handle, allocator := context.allocator) -> (string, bool)
+char_is_num :: proc(c: u8) -> bool
 {
-    save: [dynamic]u8;
+    return '0' <= c && c <= '9';
+}
 
-    for c := _read_byte(file); !strings.is_space(rune(c)); do
-        append(&save, c);
+char_is_alphanum :: proc(c: u8) -> bool
+{
+    return char_is_alpha(c) || char_is_num(c);
+}
 
-    os.seek(file, -1, os.SEEK_END);
+char_is_ident :: proc(c: u8) -> bool
+{
+    return char_is_alphanum(c) || c == '_';
+}
 
-    str := strings.clone(strings.string_from_ptr(&save[0], len(save)), allocator);
-    delete(save);
+read_ident :: proc(str: ^string, ret: ^string) -> bool
+{
+    ret^ = string{};
+    idx := 0;
+
+    if !(char_is_alpha(str[idx]) || str[idx] == '_') do
+        return false;
     
-    return str, true;
+    for char_is_ident(str[idx]) do
+        idx += 1;
+
+    if idx == 0 do
+        return false;
+    
+    ret^ = str[:idx];
+    str^ = str[idx:];
+    return true;
 }
 
-read_float :: proc(file: os.Handle, ret: $T/^$E) -> bool
+read_string :: proc(str: ^string, ret: ^string) -> bool
 {
-    val: E = 0;
-    return false;
+    ret^ = string{};
+    idx := 0;
+
+    if str[idx] != '"' && str[idx] != '\'' do
+        return false;
+
+    quote := str[idx];
+    idx += 1;
+
+    for str[idx] != quote
+    {
+        if str[idx] == '\\' do
+            idx += 1;
+        idx += 1;
+    }
+
+    ret^ = str[1:idx];
+    str^ = str[idx+1:];
+    
+    return true;
 }
 
-read_types :: proc(file: os.Handle, args: ..any) -> bool
+read_int :: proc(str: ^string, ret: $T/^$E) -> bool
 {
+    ret^ = 0;
+
+    if len(str) == 0 do
+        return false;
+    
+    sign: E = 1;
+    idx := 0;
+    
+    if str[idx] == '-'
+    {
+        sign = -1;
+        idx += 1;
+    }
+    
+
+    for idx < len(str) && '0' <= str[idx] && str[idx] <= '9'
+    {
+        ret^ *= 10;
+        ret^ += E(str[idx] - '0');
+        idx += 1;
+    }
+
+    ret^ *= sign;
+
+    if idx == 0 do
+        return false;
+    
+    str^ = str[idx:];
+    return true;
+}
+
+read_float :: proc(str: ^string, ret: $T/^$E) -> bool
+{
+    ret^ = 0;
+
+    if len(str) == 0 do
+        return false;
+
+    integer : i64 = 0;
+    ok := read_int(str, &integer);
+    if !ok do return false;
+
+    sign: E = integer < 0 ? -1 : 1;
+    ret^ = E(integer);
+
+    idx := 0;
+    if idx < len(str) && str[idx] == '.'
+    {
+        frac: E = 0;
+        div:  E = 10.0;
+        idx += 1;
+        for idx < len(str) && char_is_num(str[idx])
+        {
+            frac += E(str[idx] - '0') / div;
+            div *= 10;
+            idx += 1;
+        }
+        ret^ += frac * sign;
+    }
+
+    str^ = str[idx:];
+    return true;
+}
+
+read_any :: proc(str: ^string, arg: any, verb: u8 = 'v') -> bool
+{
+    ok := false;
+    
+    switch verb
+    {
+        case 'v':
+        switch kind in arg
+        {
+            case ^f32:  ok = read_float(str, kind);
+            case ^f64:  ok = read_float(str, kind);
+            
+            case ^i8:   ok = read_int(str, kind);
+            case ^i16:  ok = read_int(str, kind);
+            case ^i32:  ok = read_int(str, kind);
+            case ^i64:  ok = read_int(str, kind);
+            case ^i128: ok = read_int(str, kind);
+            
+            case ^string:
+            if str[0] == '"' || str[0] == '\'' do ok = read_string(str, kind);
+            else do ok = read_ident(str, kind);
+            
+            case: eprintf("Invalid type %T\n", kind);
+        }
+
+        case 'f':
+        switch kind in arg
+        {
+            case ^f32:  ok = read_float(str, kind);
+            case ^f64:  ok = read_float(str, kind);
+            case: eprintf("Invalid type %T for speicifer %%%c\n", kind, verb);
+        }
+
+        case 'd':
+        switch kind in arg
+        {
+            case ^i8:   ok = read_int(str, kind);
+            case ^i16:  ok = read_int(str, kind);
+            case ^i32:  ok = read_int(str, kind);
+            case ^i64:  ok = read_int(str, kind);
+            case ^i128: ok = read_int(str, kind);
+            
+            case: eprintf("Invalid type %T for speicifer %%%c\n", kind, verb);
+        }
+        
+        case 'q':
+        switch kind in arg
+        {
+            case ^string: ok = read_string(str, kind);
+
+            case: eprintf("Invalid type %T for speicifer %%%c\n", kind, verb);
+        }
+
+        case 's':
+        switch kind in arg
+        {
+            case ^string: ok = read_ident(str, kind);
+
+            case: eprintf("Invalid type %T for speicifer %%%c\n", kind, verb);
+        }
+     
+        case: eprintf("Invalid specifier %%%c\n", verb);
+    }
+    
+    return ok;
+}
+
+read_types :: proc(str: ^string, args: ..any) -> bool
+{
+    ok: bool;
     for v in args
     {
-        switch kind in v
+        ok = read_any(str, v);
+        if len(str) > 0 do
+            str^ = strings.trim_left_space(str^);
+        if !ok do return false;
+    }
+    return true;
+}
+
+read_fmt :: proc(str: ^string, fmt: string, args: ..any) -> bool
+{
+    ok: bool;
+
+    sidx := 0;
+    fidx := 0;
+    aidx := 0;
+    
+    for fidx < len(fmt)
+    {
+        if fmt[fidx] != '%'
         {
-            case ^f32: read_float(file, kind);
-            case ^f64: read_float(file, kind);
-            case ^i32: printf("Reading %t\n",  typeid_of(type_of(kind)));
-            case ^i64: printf("Reading %t\n",  typeid_of(type_of(kind)));
-            case: eprintf("Invalid type %v\n", typeid_of(type_of(kind)));
+            if str[sidx] == fmt[fidx]
+            {
+                sidx += 1;
+                fidx += 1;
+                continue;
+            }
+            else
+            {
+                if sidx > 0 do
+                    str^ = str[sidx:];
+                return false;
+            }
         }
+
+        if aidx >= len(args) do
+            return false;
+
+        str^ = str[sidx:];
+        sidx = 0;
+        fidx += 1;
+        switch fmt[fidx]
+        {
+            case 'd': fallthrough;
+            case 'f': fallthrough;
+            case 'q': fallthrough;
+            case 's': fallthrough;
+            case 'v': ok = read_any(str, args[aidx], fmt[fidx]);
+            case:
+                eprintf("Invalid format specifier '%%%c'\n", fmt[fidx]);
+                return false;
+        }
+        fidx += 1;
+        aidx += 1;
+        if !ok do return false;
     }
     return true;
 }

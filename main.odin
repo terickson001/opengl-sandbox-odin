@@ -33,11 +33,6 @@ main :: proc()
 
     gl.ClearColor(0.0, 0.3, 0.4, 0.0);
 
-    foo: f32;
-    bar: i64;
-    baz: i32;
-    res := util.read_types(os.Handle(0), &foo, &bar, &baz);
-    
     for glfw.get_key(window.handle, glfw.KEY_ESCAPE) != glfw.PRESS &&
         !glfw.window_should_close(window.handle)
     {
