@@ -1,17 +1,16 @@
 package rendering
 
 using import "core:fmt"
-using import "core:runtime"
-import "core:time"
 import "shared:gl"
 import "core:os"
 import "core:strings"
 import "core:mem"
+import "core:reflect"
 
 Shader :: struct
 {
     id: u32,
-    time: time.Time,
+    time: os.File_Time,
 
     vs_filepath: string,
     gs_filepath: string,
@@ -73,7 +72,7 @@ compile_shader :: proc(filepath: string, kind: u32) -> u32
     return id;
 }
 
-load_shaders :: proc(vs_filepath, fs_filepath: string) -> u32
+load_shader :: proc(vs_filepath, fs_filepath: string) -> u32
 {
     vs_code, fs_code: []byte;
     if vs_code, ok := os.read_entire_file(vs_filepath); !ok
@@ -126,17 +125,53 @@ load_shaders :: proc(vs_filepath, fs_filepath: string) -> u32
     return program_id;
 }
 
-init_shaders :: proc(vs_filepath, fs_filepath: string) -> Shader
+init_shader :: proc(vs_filepath, fs_filepath: string) -> Shader
 {
     s := Shader{};
-    s.id = load_shaders(vs_filepath, fs_filepath);
+    s.id = load_shader(vs_filepath, fs_filepath);
     
     s.vs_filepath = strings.clone(vs_filepath);
     s.fs_filepath = strings.clone(fs_filepath);
 
-    uniform_names := type_info_of(type_of(s.uniforms)).variant.(Type_Info_Struct).names;
-    // uniforms := make([]i32, size_of(s.uniforms)/size_of(i32));
+    uniform_names := reflect.struct_field_names(type_of(s.uniforms));
     uniforms := transmute([]i32)(mem.Raw_Slice{&s.uniforms, size_of(s.uniforms)/size_of(i32)});
-    for name, i in uniform_names do
-        uniforms[i] = gl.GetUniformLocation(s.id, name);
+    for name, i in uniform_names
+    {
+        cstr := strings.clone_to_cstring(name);
+        defer delete(cstr);
+
+        uniforms[i] = gl.GetUniformLocation(s.id, cstr);
+    }
+
+    vs_time, _ := os.last_write_time_by_name(vs_filepath);
+    fs_time, _ := os.last_write_time_by_name(fs_filepath);
+
+    s.time = max(vs_time, fs_time);
+
+    return s;
+}
+
+shader_check_update :: proc(s: ^Shader) -> bool
+{
+    vs_time, _ := os.last_write_time_by_name(s.vs_filepath);
+    fs_time, _ := os.last_write_time_by_name(s.fs_filepath);
+
+    new_time := max(vs_time, fs_time);
+    if s.time < new_time
+    {
+        old := s^;
+        s^ = init_shader(s.vs_filepath, s.fs_filepath);
+        delete_shader(old);
+        return true;
+    }
+    
+    return false;
+}
+
+delete_shader :: proc(s: Shader)
+{
+    delete(s.vs_filepath);
+    delete(s.fs_filepath);
+
+    gl.DeleteProgram(s.id);
 }
