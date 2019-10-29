@@ -304,3 +304,83 @@ create_model_vbos :: proc(m: ^Mesh)
         gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, len(m.indices)*size_of(u16), &m.indices[0], gl.STATIC_DRAW);
     }
 }
+
+invert_uvs :: proc(m: ^Mesh)
+{
+    for _, i in m.uvs do
+        m.uvs[i].y = 1.0 - m.uvs[i].y;
+}
+
+make_mesh :: proc(filepath: string, normals: bool, invert_uv: bool) -> Mesh
+{
+    mesh := load_obj(filepath);
+    if normals do compute_tangent_basis(&mesh);
+    index_mesh(&mesh);
+    if invert_uv do invert_uvs(&mesh);
+
+    return mesh;
+}
+
+draw_model :: proc(s: Shader, m: Mesh)
+{
+    gl.EnableVertexAttribArray(0);
+    gl.BindBuffer(gl.ARRAY_BUFFER, m.vbuff);
+
+    gl.VertexAttribPointer(
+        0,        // attribute 0
+        3,        // size
+        gl.FLOAT, // type
+        gl.FALSE, // normalized?
+        0,        // stride
+        nil       // array buffer offset
+    );
+
+    gl.EnableVertexAttribArray(1);
+    gl.BindBuffer(gl.ARRAY_BUFFER, m.uvbuff);
+    gl.VertexAttribPointer(1, 2, gl.FLOAT, gl.FALSE, 0, nil);
+
+    gl.EnableVertexAttribArray(2);
+    gl.BindBuffer(gl.ARRAY_BUFFER, m.nbuff);
+    gl.VertexAttribPointer(2, 3, gl.FLOAT, gl.FALSE, 0, nil);
+    
+    gl.EnableVertexAttribArray(3);
+    gl.BindBuffer(gl.ARRAY_BUFFER, m.tbuff);
+    gl.VertexAttribPointer(3, 3, gl.FLOAT, gl.FALSE, 0, nil);
+
+    gl.EnableVertexAttribArray(4);
+    gl.BindBuffer(gl.ARRAY_BUFFER, m.btbuff);
+    gl.VertexAttribPointer(4, 3, gl.FLOAT, gl.FALSE, 0, nil);
+
+    if m.indexed
+    {
+        gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, m.ebuff);
+        gl.DrawElements(gl.TRIANGLES, i32(len(m.indices)), gl.UNSIGNED_SHORT, nil);
+    }
+    else
+    {
+        gl.DrawArrays(gl.TRIANGLES, 0, i32(len(m.vertices)));
+    }
+
+    gl.DisableVertexAttribArray(0); // vbuff
+    gl.DisableVertexAttribArray(1); // uvbuff
+    gl.DisableVertexAttribArray(2); // nbuff
+    gl.DisableVertexAttribArray(3); // tbuff
+    gl.DisableVertexAttribArray(4); // btbuff
+}
+
+delete_model :: proc (m: ^Mesh)
+{
+    delete(m.vertices);
+    delete(m.uvs);
+    delete(m.normals);
+    delete(m.indices);
+    delete(m.tangents);
+    delete(m.bitangents);
+
+    m.vertices   = nil;
+    m.uvs        = nil;
+    m.normals    = nil;
+    m.indices    = nil;
+    m.tangents   = nil;
+    m.bitangents = nil;
+}
