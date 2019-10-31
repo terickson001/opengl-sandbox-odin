@@ -6,8 +6,8 @@ import "core:os"
 import "shared:gl"
 import "shared:glfw"
 
-import "rendering"
-import "util"
+using import "rendering"
+// import "util"
 
 main :: proc()
 {
@@ -31,6 +31,9 @@ main :: proc()
     gl.GenVertexArrays(1, &vao);
     gl.BindVertexArray(vao);
 
+    s := init_shader("./shader/vertex.vs", "./shader/fragment.fs");
+    m := make_mesh("./res/suzanne.obj", true, true);
+    create_mesh_vbos(&m);
     gl.ClearColor(0.0, 0.3, 0.4, 0.0);
 
     for glfw.get_key(window.handle, glfw.KEY_ESCAPE) != glfw.PRESS &&

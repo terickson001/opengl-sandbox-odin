@@ -18,22 +18,22 @@ Shader :: struct
 
     uniforms: struct
     {
-        resolution:        i32,
-        px_range:          i32,
+        resolution:       i32,
+        px_range:         i32,
 
-        model_matrix:      i32,
-        view_matrix:       i32,
-        projection_matrix: i32,
-        mvp_matrix:        i32,
-        vp_matrix:         i32,
+        M:                i32,
+        V:                i32,
+        P:                i32,
+        MVP:              i32,
+        VP:               i32,
 
-        diffuse_tex:       i32,
-        normal_tex:        i32,
-        specular_tex:      i32,
+        diffuse_sampler:  i32,
+        normal_sampler:   i32,
+        specular_sampler: i32,
 
-        light_pos:         i32,
-        light_col:         i32,
-        light_pow:         i32,
+        light_position_m: i32,
+        light_color:      i32,
+        light_power:      i32,
     },
 }
 
@@ -41,12 +41,14 @@ compile_shader :: proc(filepath: string, kind: u32) -> u32
 {
     id := gl.CreateShader(kind);
     code: []byte;
-    if code, ok := os.read_entire_file(filepath); !ok
+    ok: bool;
+    
+    if code, ok = os.read_entire_file(filepath); !ok
     {
         eprintf("Failed to open shader '%s'\n", filepath);
         return 0;
     }
-
+    
     result := i32(gl.FALSE);
     info_log_length: i32;
 

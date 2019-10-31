@@ -275,7 +275,7 @@ compute_tangent_basis :: proc(m: ^Mesh)
     }
 }
 
-create_model_vbos :: proc(m: ^Mesh)
+create_mesh_vbos :: proc(m: ^Mesh)
 {
     gl.GenBuffers(1, &m.vbuff);
     gl.BindBuffer(gl.ARRAY_BUFFER, m.vbuff);

@@ -1,1 +1,4 @@
 main
+
+res/font/*_msdf
+res/font/*_msdfmetrics
