@@ -181,7 +181,7 @@ load_tga :: proc(filepath: string) -> (u32, Texture_Info)
             }
             else
             {
-                for j := 0; j < count + 1; j += 1
+                for j in 0..count
                 {
                     mem.copy(&decoded_image_data[decoded_index], &image_data[i], pixel_depth_bytes);
                     i += pixel_depth_bytes;
@@ -297,8 +297,11 @@ load_dds :: proc(filepath: string) -> (u32, Texture_Info)
     block_size := u32(four_cc == FOURCC_DXT1 ? 8 : 16);
     offset := u32(0);
 
-    for level := u32(0); level < mipmap_count && (width != 0 || height != 0); level += 1
+    for level in 0..<(mipmap_count)
     {
+        if width == 0 && height == 0 do
+            break;
+        
         size := ((width+3)/4) * ((height+3)/4) * block_size;
         gl.CompressedTexImage2D(gl.TEXTURE_2D, i32(level), format,
                                 i32(width), i32(height), 0, i32(size), &buf[offset]);
