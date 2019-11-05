@@ -6,7 +6,7 @@ using import "core:math"
 import "shared:gl"
 import "core:os"
 import "core:mem"
-
+import "core:strings"
 
 load_bmp :: proc(filepath: string) -> (u32, Texture_Info)
 {
@@ -120,7 +120,7 @@ load_tga :: proc(filepath: string) -> (u32, Texture_Info)
         }
     }
 
-    cmap_data := make([]byte, cmap_len*cmap_depth_bytes);
+    cmap_data := make([]byte, int(cmap_len)*cmap_depth_bytes);
     defer delete(cmap_data);
     if cmap_type != 0
     {
@@ -132,7 +132,7 @@ load_tga :: proc(filepath: string) -> (u32, Texture_Info)
         }
     }
 
-    raw_image_data := make([]byte, width*height*pixel_depth_bytes);
+    raw_image_data := make([]byte, int(width*height)*pixel_depth_bytes);
     image_size, _ := os.read(file, raw_image_data);
     if image_size == 0
     {
@@ -143,11 +143,11 @@ load_tga :: proc(filepath: string) -> (u32, Texture_Info)
     image_data := raw_image_data[:];
     defer delete(image_data);
     
-    decoded_data_size := width*height*pixel_depth_bytes;
+    decoded_data_size := int(width*height)*pixel_depth_bytes;
     image_data_size: int;
 
     if cmap_type != 0 do
-        image_data_size = int(width*height*cmap_depth_bytes);
+        image_data_size = int(width*height)*cmap_depth_bytes;
     else do
         image_data_size = int(decoded_data_size);
 
@@ -239,5 +239,84 @@ load_tga :: proc(filepath: string) -> (u32, Texture_Info)
 
     info := Texture_Info{u32(width), u32(height)};
 
+    return texture_id, info;
+}
+
+load_dds :: proc(filepath: string) -> (u32, Texture_Info)
+{
+    file, err := os.open(filepath);
+    if err != 0
+    {
+        eprintf("Could not open image %q\n", filepath);
+        return 0, Texture_Info{};
+    }
+
+    filecode: [4]byte;
+    os.read(file, filecode[:]);
+    if strings.string_from_ptr(&filecode[0], 4) != "DDS\x00"
+    {
+        eprintf("Image %q is not a valid DDS\n", filepath);
+        return 0, Texture_Info{};
+    }
+
+    
+    header: [124]byte;
+    os.read(file, header[:]);
+
+    height       := (^u32)(&header[0x08])^;
+    width        := (^u32)(&header[0x0C])^;
+    linear_size  := (^u32)(&header[0x10])^;
+    mipmap_count := (^u32)(&header[0x18])^;
+    four_cc      := (^u32)(&header[0x50])^;
+
+    bufsize := mipmap_count > 1 ? linear_size * 2 : linear_size;
+    buf := make([]byte, bufsize);
+    defer delete(buf);
+    os.read(file, buf);
+    os.close(file);
+
+    FOURCC_DXT1 :: 0x31545844;
+    FOURCC_DXT3 :: 0x33545844;
+    FOURCC_DXT5 :: 0x35545844;
+
+    format: u32;
+    switch four_cc
+    {
+    case FOURCC_DXT1: format = gl.COMPRESSED_RGBA_S3TC_DXT1_EXT;
+    case FOURCC_DXT3: format = gl.COMPRESSED_RGBA_S3TC_DXT3_EXT;
+    case FOURCC_DXT5: format = gl.COMPRESSED_RGBA_S3TC_DXT5_EXT;
+    case: return 0, Texture_Info{};
+    }
+
+    texture_id: u32;
+    gl.GenTextures(1, &texture_id);
+
+    gl.BindTexture(gl.TEXTURE_2D, texture_id);
+    gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1);
+
+    block_size := u32(four_cc == FOURCC_DXT1 ? 8 : 16);
+    offset := u32(0);
+
+    for level := u32(0); level < mipmap_count && (width != 0 || height != 0); level += 1
+    {
+        size := ((width+3)/4) * ((height+3)/4) * block_size;
+        gl.CompressedTexImage2D(gl.TEXTURE_2D, i32(level), format,
+                                i32(width), i32(height), 0, i32(size), &buf[offset]);
+        offset += size;
+        width  /= 2;
+        height /= 2;
+
+        if width  < 1 do width  = 1;
+        if height < 1 do height = 1;
+    }
+
+    gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+    gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+    gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST_MIPMAP_LINEAR);
+
+    gl.BindTexture(gl.TEXTURE_2D, 0);
+
+    info := Texture_Info{width, height};
     return texture_id, info;
 }
