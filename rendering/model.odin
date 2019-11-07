@@ -63,10 +63,16 @@ load_obj :: proc(filepath : string) -> Mesh
     temp_norms := make([dynamic]Vec3);
     temp_uvs   := make([dynamic]Vec2);
     
-    for
+    for len(file) > 0
     {
+        if file[0] == '#'
+        {
+            read_line(&file, nil);
+            continue;
+        }
+        
         header: string;
-        if !read_ident(&file, &header) do
+        if !read_fmt(&file, "%s ", &header) do
             break;
 
         if header == "v"
@@ -98,6 +104,10 @@ load_obj :: proc(filepath : string) -> Mesh
             append_elems(&vert_indices, ..vi[:]);
             append_elems(&norm_indices, ..ni[:]);
             append_elems(&uv_indices,   ..uvi[:]);
+        }
+        else if header == "s" || header == "usemtl"
+        {
+            read_line(&file, nil);
         }
     }
 
@@ -257,13 +267,15 @@ _compute_tangent_basis_unindexed :: proc(m: ^Mesh)
         append(&m.tangents, tangent);
         append(&m.tangents, tangent);
         append(&m.tangents, tangent);
+
+        i += 3;
     }
 }
 
 compute_tangent_basis :: proc(m: ^Mesh)
 {
-    if (m.indexed) do _compute_tangent_basis_indexed(m);
-    else do           _compute_tangent_basis_unindexed(m);
+    if m.indexed do _compute_tangent_basis_indexed(m);
+    else do         _compute_tangent_basis_unindexed(m);
 
     for _, i in m.vertices
     {

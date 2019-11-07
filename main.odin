@@ -7,7 +7,6 @@ import "shared:gl"
 import "shared:glfw"
 
 using import "rendering"
-// import "util"
 
 main :: proc()
 {
@@ -33,7 +32,7 @@ main :: proc()
 
     s := init_shader("./shader/vertex.vs", "./shader/fragment.fs");
     m := make_mesh("./res/suzanne.obj", true, true);
-    create_mesh_vbos(&m);
+    // create_mesh_vbos(&m);
     gl.ClearColor(0.0, 0.3, 0.4, 0.0);
 
     for glfw.get_key(window.handle, glfw.KEY_ESCAPE) != glfw.PRESS &&
@@ -62,7 +61,7 @@ init_glfw :: proc()
 
 init_gl :: proc()
 {
-    gl.load_up_to(3, 3, glfw.set_proc_address);
+    gl.load_up_to(4, 3, glfw.set_proc_address);
     println("GL initialized");
 }
 

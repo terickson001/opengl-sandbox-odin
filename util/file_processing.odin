@@ -25,6 +25,38 @@ char_is_ident :: proc(c: u8) -> bool
     return char_is_alphanum(c) || c == '_';
 }
 
+read_char :: proc(str: ^string, c: ^byte) -> bool
+{
+    c^ = 0;
+    if len(str) == 0 do return false;
+
+    c^ = str[0];
+    str^ = str[1:];
+    return true;
+}
+
+read_line :: proc(str: ^string, ret: ^string) -> bool
+{
+    line := string{};
+    defer if ret != nil do ret^ = line;
+
+    idx := 0;
+    for idx < len(str) && str[idx] != '\n' do
+        idx += 1;
+
+    line = str[:idx];
+    if str[idx] == '\n'
+    {
+        str^ = str[idx+1:];
+        return true;
+    }
+    else
+    {
+        str^ = string{};
+        return false;
+    }
+}
+
 read_ident :: proc(str: ^string, ret: ^string) -> bool
 {
     ret^ = string{};
@@ -38,7 +70,7 @@ read_ident :: proc(str: ^string, ret: ^string) -> bool
 
     if idx == 0 do
         return false;
-    
+
     ret^ = str[:idx];
     str^ = str[idx:];
     return true;
@@ -75,7 +107,7 @@ read_int :: proc(str: ^string, ret: $T/^$E) -> bool
     if len(str) == 0 do
         return false;
     
-    sign: E = 1;
+    sign := int(1);
     idx := 0;
     
     if str[idx] == '-'
@@ -92,7 +124,7 @@ read_int :: proc(str: ^string, ret: $T/^$E) -> bool
         idx += 1;
     }
 
-    ret^ *= sign;
+    ret^ *= E(sign);
 
     if idx == 0 do
         return false;
@@ -151,6 +183,11 @@ read_any :: proc(str: ^string, arg: any, verb: u8 = 'v') -> bool
             case ^i32:  ok = read_int(str, kind);
             case ^i64:  ok = read_int(str, kind);
             case ^i128: ok = read_int(str, kind);
+            case ^u8:   ok = read_int(str, kind);
+            case ^u16:  ok = read_int(str, kind);
+            case ^u32:  ok = read_int(str, kind);
+            case ^u64:  ok = read_int(str, kind);
+            case ^u128: ok = read_int(str, kind);
             
             case ^string:
             if str[0] == '"' || str[0] == '\'' do ok = read_string(str, kind);
@@ -164,7 +201,7 @@ read_any :: proc(str: ^string, arg: any, verb: u8 = 'v') -> bool
         {
             case ^f32:  ok = read_float(str, kind);
             case ^f64:  ok = read_float(str, kind);
-            case: eprintf("Invalid type %T for speicifer %%%c\n", kind, verb);
+            case: eprintf("Invalid type %T for specifier %%%c\n", kind, verb);
         }
 
         case 'd':
@@ -175,8 +212,14 @@ read_any :: proc(str: ^string, arg: any, verb: u8 = 'v') -> bool
             case ^i32:  ok = read_int(str, kind);
             case ^i64:  ok = read_int(str, kind);
             case ^i128: ok = read_int(str, kind);
+
+            case ^u8:   ok = read_int(str, kind);
+            case ^u16:  ok = read_int(str, kind);
+            case ^u32:  ok = read_int(str, kind);
+            case ^u64:  ok = read_int(str, kind);
+            case ^u128: ok = read_int(str, kind);
             
-            case: eprintf("Invalid type %T for speicifer %%%c\n", kind, verb);
+            case: eprintf("Invalid type %T for specifier %%%c\n", kind, verb);
         }
         
         case 'q':
@@ -184,7 +227,7 @@ read_any :: proc(str: ^string, arg: any, verb: u8 = 'v') -> bool
         {
             case ^string: ok = read_string(str, kind);
 
-            case: eprintf("Invalid type %T for speicifer %%%c\n", kind, verb);
+            case: eprintf("Invalid type %T for specifier %%%c\n", kind, verb);
         }
 
         case 's':
@@ -192,7 +235,7 @@ read_any :: proc(str: ^string, arg: any, verb: u8 = 'v') -> bool
         {
             case ^string: ok = read_ident(str, kind);
 
-            case: eprintf("Invalid type %T for speicifer %%%c\n", kind, verb);
+            case: eprintf("Invalid type %T for specifier %%%c\n", kind, verb);
         }
      
         case: eprintf("Invalid specifier %%%c\n", verb);
@@ -226,9 +269,16 @@ read_fmt :: proc(str: ^string, fmt: string, args: ..any) -> bool
     {
         if fmt[fidx] != '%'
         {
+            
             if str[sidx] == fmt[fidx]
             {
                 sidx += 1;
+                fidx += 1;
+                continue;
+            }
+            else if fmt[fidx] == '\n' && strings.has_prefix(str[sidx:], "\r\n")
+            {
+                sidx += 2;
                 fidx += 1;
                 continue;
             }
@@ -245,7 +295,7 @@ read_fmt :: proc(str: ^string, fmt: string, args: ..any) -> bool
 
         str^ = str[sidx:];
         sidx = 0;
-        fidx += 1;
+        fidx += 1; // %
         switch fmt[fidx]
         {
             case 'd': fallthrough;
@@ -261,5 +311,6 @@ read_fmt :: proc(str: ^string, fmt: string, args: ..any) -> bool
         aidx += 1;
         if !ok do return false;
     }
+    str^ = str[sidx:];
     return true;
 }

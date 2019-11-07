@@ -323,3 +323,165 @@ load_dds :: proc(filepath: string) -> (u32, Texture_Info)
     info := Texture_Info{width, height};
     return texture_id, info;
 }
+
+load_png :: proc(filepath: string) -> (u32, Texture_Info)
+{
+    
+    return 0, Texture_Info{};
+}
+
+PNG_Chunk :: struct
+{
+    size:  u32,
+    type:  [4]byte,
+    data:  []byte,
+    crc32: u32,
+}
+
+_read_sized :: proc (file: ^[]byte, $T: typeid) -> T
+{
+    if len(file^) < size_of(T)
+    {
+        eprintf("Expected %T, got EOF\n", typeid_of(T));
+        return T(0);
+    }
+
+    ret := (^T)(&file[0])^;
+    file^ = file[size_of(T):];
+
+    return ret;
+}
+
+_png_read_chunk :: proc(file: ^[]byte) -> PNG_Chunk
+{
+    chunk := PNG_Chunk{};
+    chunk.size = u32(_read_sized(file, u32be));
+    chunk.type = _read_sized(file, [4]byte);
+
+    chunk.data = make([]byte, chunk.size);
+    copy(chunk.data, file^);
+    file^ = file[chunk.size:];
+
+    chunk.crc32 = u32(_read_sized(file, u32be));
+
+    return chunk;
+}
+
+Zlib_Block :: struct
+{
+    cmf: byte,
+    extra_flags: byte,
+    data: []byte,
+    check_value: u16,
+}
+
+_zlib_read_block :: proc(file: ^[]byte, size: u32) -> Zlib_Block
+{
+    block := Zlib_Block{};
+    block.cmf = _read_sized(file, byte);
+    block.extra_flags = _read_sized(file, byte);
+
+    block.data = make([]byte, size-4);
+    copy(block.data, file^);
+    file^ = file[len(block.data):];
+
+    block.check_value = u16(_read_sized(file, u16be));
+
+    return block;
+}
+
+PNG_Bit_Stream :: struct
+{
+    data: []byte,
+    buffer: u32,
+    remaining: u32,
+}
+
+_png_load_bits :: proc(bits: ^PNG_Bit_Stream, req: u32)
+{
+    bits_to_read := req - bits.remaining;
+    bytes_to_read := bits_to_read/8;
+    if bits_to_read%8 != 0 do
+        bytes_to_read += 1;
+
+    for i in 0..<(bytes_to_read)
+    {
+        new_byte := u32(_read_sized(&bits.data, byte));
+        bits.buffer |= new_byte << (i*8 + bits.remaining);
+    }
+
+    bits.remaining += bytes_to_read * 8;
+}
+
+_png_read_bits :: proc(bits: ^PNG_Bit_Stream, size: u32) -> u32
+{
+    res := u32(0);
+
+    if size > bits.remaining do
+        _png_load_bits(bits, size);
+
+    for i in 0..<(size)
+    {
+        bit := u32(bits.buffer & (1 << i));
+        res |= bit;
+    }
+
+    bits.buffer >>= size;
+    bits.remaining -= size;
+
+    return res;
+}
+
+_get_max_bit_length :: proc(lengths: []byte) -> byte
+{
+    max_length := byte(0);
+    for l in lengths do
+        max_length = max(max_length, l);
+    return max_length;
+}
+
+_get_bit_length_count :: proc(counts: []u32, lengths: []byte)
+{
+    for l in lengths do
+        counts[l] += 1;
+}
+
+_first_code_for_bitlen :: proc(first_codes: []u32, counts: []u32, max_length: byte)
+{
+    code := u32(0);
+    for i in 1..<(max_length)
+    {
+        code = (code + counts[i-1]) << 1;
+        if counts[i] > 0 do
+            first_codes[i] = code;
+    }
+}
+
+_assign_huffman_codes :: proc(assigned_codes: []u32, first_codes: []u32, lengths: []byte)
+{
+    for _, i in assigned_codes
+    {
+        if lengths[i] > 0
+        {
+            first_codes[lengths[i]] += 1;
+            assigned_codes[i] = first_codes[lengths[i]];
+        }
+    }
+}
+
+_build_huffman_code :: proc(lengths: []byte) -> []u32
+{
+    max_length := _get_max_bit_length(lengths);
+
+    counts         := make([]u32, max_length+1);
+    first_codes    := make([]u32, max_length+1);
+    assigned_codes := make([]u32, len(lengths));
+
+    _get_bit_length_count(counts, lengths);
+    counts[0] = 0;
+
+    _first_code_for_bitlen(first_codes, counts, max_length);
+    _assign_huffman_codes(assigned_codes, first_codes, lengths);
+
+    return assigned_codes;
+}
