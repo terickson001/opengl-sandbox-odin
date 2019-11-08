@@ -485,3 +485,241 @@ _build_huffman_code :: proc(lengths: []byte) -> []u32
 
     return assigned_codes;
 }
+
+_peek_bits_reverse :: proc(bits: ^PNG_Bit_Stream, size: u32) -> u32
+{
+    if size > bits.remaining do
+        _png_load_bits(bits, size);
+    
+    res := u32(0);
+    for i in 0..<(size)
+    {
+        res <<= 1;
+        bit := u32(bits.buffer & (1 << i));
+        res |= (bit != 0) ? 1 : 0;
+    }
+
+    return res;
+}
+
+_decode_huffman :: proc(bits: ^PNG_Bit_Stream, codes: []u32, lengths: []byte) -> u32
+{
+    for _, i in codes
+    {
+        code := _peek_bits_reverse(bits, u32(lengths[i]));
+        if codes[i] == code
+        {
+            bits.buffer >>= lengths[i];
+            bits.remaining -= u32(lengths[i]);
+            return u32(i);
+        }
+    }
+    
+    return 0;
+}
+
+@static HUFFMAN_ALPHABET :=
+    [?]u32{16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15};
+
+@static base_length_extra_bit := [?]u8{
+    0, 0, 0, 0, 0, 0, 0, 0, //257 - 264
+    1, 1, 1, 1, //265 - 268
+    2, 2, 2, 2, //269 - 273 
+    3, 3, 3, 3, //274 - 276
+    4, 4, 4, 4, //278 - 280
+    5, 5, 5, 5, //281 - 284
+    0           //285
+};
+
+@static base_lengths := [?]u8{
+    3, 4, 5, 6, 7, 8, 9, 10, //257 - 264
+    11, 13, 15, 17,          //265 - 268
+    19, 23, 27, 31,          //269 - 273 
+    35, 43, 51, 59,          //274 - 276
+    67, 83, 99, 115,         //278 - 280
+    131, 163, 195, 227,      //281 - 284
+    0                        //285
+};
+
+@static dist_bases := [?]u32{
+    /*0*/  1,     2, 3, 4, //0-3
+    /*1*/  5,     7,       //4-5
+    /*2*/  9,     13,      //6-7
+    /*3*/  17,    25,      //8-9
+    /*4*/  33,    49,      //10-11
+    /*5*/  65,    97,      //12-13
+    /*6*/  129,   193,     //14-15
+    /*7*/  257,   385,     //16-17
+    /*8*/  513,   769,     //18-19
+    /*9*/  1025,  1537,    //20-21
+    /*10*/ 2049,  3073,    //22-23
+    /*11*/ 4097,  6145,    //24-25
+    /*12*/ 8193,  12289,   //26-27
+    /*13*/ 16385, 24577,    //28-29
+           0,     0        //30-31, error, shouldn't occur
+};
+
+@static dist_extra_bits := [?]u32{
+    /*0*/  0, 0, 0, 0, //0-3
+    /*1*/  1, 1,       //4-5
+    /*2*/  2, 2,       //6-7
+    /*3*/  3, 3,       //8-9
+    /*4*/  4, 4,       //10-11
+    /*5*/  5, 5,       //12-13
+    /*6*/  6, 6,       //14-15
+    /*7*/  7, 7,       //16-17
+    /*8*/  8, 8,       //18-19
+    /*9*/  9, 9,       //20-21
+    /*10*/ 10, 10,     //22-23
+    /*11*/ 11, 11,     //24-25
+    /*12*/ 12, 12,     //26-27
+    /*13*/ 13, 13,     //28-29
+           0,  0       //30-31 error, they shouldn't occur
+};
+
+_zlib_deflate :: proc(
+    bits: ^PNG_Bit_Stream,
+    literal_tree: []u32, lit_bit_len: []byte,
+    distance_tree: []u32, dist_bit_len: []byte) -> ([]byte, u32)
+{
+    decompressed_data := make([]byte, 1024*1024); // 1MiB
+    data_index := u32(0);
+    for
+    {
+        decoded_value := _decode_huffman(bits, literal_tree, lit_bit_len);
+
+        if decoded_value == 256 do break;
+        if decoded_value < 256
+        {
+            decompressed_data[data_index] = byte(decoded_value);
+            data_index += 1;
+            continue;
+        }
+
+        if 256 < decoded_value && decoded_value < 286
+        {
+            base_index := decoded_value - 257;
+            duplicate_length := u32(base_lengths[base_index]) + _png_read_bits(bits, u32(base_length_extra_bit[base_index]));
+
+            distance_index := _decode_huffman(bits, distance_tree, dist_bit_len);
+            distance_length := dist_bases[distance_index] + _png_read_bits(bits, dist_extra_bits[distance_index]);
+
+            back_pointer_index := data_index - distance_length;
+            for duplicate_length > 0
+            {
+                decompressed_data[data_index] = decompressed_data[back_pointer_index];
+                data_index         += 1;
+                back_pointer_index += 1;
+                duplicate_length   -= 1;
+            }
+        }
+    }
+
+    bytes_read := data_index;
+    
+    fit_image := make([]byte, bytes_read);
+    copy(fit_image, decompressed_data);
+    delete(decompressed_data);
+
+    return fit_image, bytes_read;
+}
+
+_zlib_decompress :: proc(data: []byte) -> (dec_data: []byte, data_read: u32)
+{
+    decompressed_data := make([]byte, 1024*1024*4); // 4MiB
+    data_read = 0;
+    final := false;
+    type: u32;
+
+    bits := PNG_Bit_Stream{data, 0, 0};
+    for !final
+    {
+        final = bool(_png_read_bits(&bits, 1));
+        type  = _png_read_bits(&bits, 2);
+
+        hlit  := u32(_png_read_bits(&bits, 5)) + 257;
+        hdist := u32(_png_read_bits(&bits, 5)) + 1;
+        hclen := u32(_png_read_bits(&bits, 4)) + 4;
+
+        code_length_of_code_length: [19]byte;
+
+        for i in 0..<(hclen) do
+            code_length_of_code_length[HUFFMAN_ALPHABET[i]] = byte(_png_read_bits(&bits, 3));
+
+        huffman_codes_of_tree_of_trees := _build_huffman_code(code_length_of_code_length[:]);
+        two_trees_code_bit_lengths := make([]byte, hlit+hdist);
+
+        code_index := u32(0);
+        for code_index < u32(len(two_trees_code_bit_lengths))
+        {
+            decoded_value := _decode_huffman(&bits, huffman_codes_of_tree_of_trees, code_length_of_code_length[:]);
+            if decoded_value < 16
+            {
+                two_trees_code_bit_lengths[code_index] = byte(decoded_value);
+                code_index += 1;
+                continue;
+            }
+
+            repeat_count := u32(0);
+            code_length_to_repeat := byte(0);
+
+            switch decoded_value
+            {
+            case 16:
+                repeat_count = _png_read_bits(&bits, 2) + 3;
+                code_length_to_repeat = two_trees_code_bit_lengths[code_index - 1];
+            case 17:
+                repeat_count = _png_read_bits(&bits, 3) + 3;
+            case 18:
+                repeat_count = _png_read_bits(&bits, 7) + 11;
+            }
+
+            mem.set(&two_trees_code_bit_lengths[code_index], code_length_to_repeat, int(repeat_count));
+            code_index += repeat_count;
+        }
+
+        literal_length_huff_tree := _build_huffman_code(two_trees_code_bit_lengths[:hlit]);
+        distance_huff_tree       := _build_huffman_code(two_trees_code_bit_lengths[hlit:]);
+
+        decompressed_block, block_size := _zlib_deflate(
+            &bits,
+            literal_length_huff_tree, two_trees_code_bit_lengths[:hlit],
+            distance_huff_tree, two_trees_code_bit_lengths[hlit:]);
+
+        copy(decompressed_data[data_read:], decompressed_block);
+        data_read += block_size;
+        delete(decompressed_block);
+    }
+
+    dec_data = make([]byte, data_read);
+    copy(dec_data, decompressed_data);
+    delete(decompressed_data);
+    
+    return dec_data, data_read;
+}
+
+_png_paeth_predict :: prc(a, b, c: i32) -> i32
+{
+    p := a + b - c;
+    pa := abs(p-a);
+    pb := abs(p-b);
+    pc := abs(p-c);
+
+    if pa <= pb && pa <= pc do return a;
+    if pb <= pc do return b;
+    return c;
+}
+
+PNG_Filter :: enum
+{
+    None,
+    Sub,
+    Up,
+    Avg,
+    Paeth,
+}
+
+_png_defilter :: proc(data: []byte, size: u32, ihdr: ^PNG_Chunk)
+{
+
+}
