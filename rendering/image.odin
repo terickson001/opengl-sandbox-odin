@@ -324,16 +324,50 @@ load_dds :: proc(filepath: string) -> (u32, Texture_Info)
     return texture_id, info;
 }
 
+
 load_png :: proc(filepath: string) -> (u32, Texture_Info)
 {
+    chunks := make([dynamic]PNG_Chunk);
+    file, ok := os.read_entire_file(filepath);
+    if !ok
+    {
+        eprintf("Could not open file %q\n", filepath);
+        return 0, Texture_Info{};
+    }
+    
+    chunk := _png_read_chunk(&file);
+    for u32(chunk.type) != PNG_IEND
+    {
+        append(&chunks, chunk);
+        chunk = _png_read_chunk(&file);
+    }
     
     return 0, Texture_Info{};
 }
 
+PNG_IHDR :: 0x49484452;
+PNG_PLTE :: 0x504c5445;
+PNG_IDAT :: 0x49444154;
+PNG_IEND :: 0x49454e44;
+
+PNG_cHRM :: 0x6348524d;
+PNG_gAMA :: 0x67414d41;
+PNG_sBIT :: 0x73424954;
+PNG_sRGB :: 0x73524742;
+PNG_bKGD :: 0x624b4744;
+PNG_hIST :: 0x68495354;
+PNG_tRNS :: 0x74524e53;
+PNG_pHYs :: 0x70485973;
+PNG_sPLT :: 0x73504c54;
+PNG_tIME :: 0x74494d45;
+PNG_iTXt :: 0x69545874;
+PNG_tEXt :: 0x74455874;
+PNG_zTXt :: 0x7a545874;
+
 PNG_Chunk :: struct
 {
     size:  u32,
-    type:  [4]byte,
+    type:  u32,
     data:  []byte,
     crc32: u32,
 }
@@ -356,7 +390,7 @@ _png_read_chunk :: proc(file: ^[]byte) -> PNG_Chunk
 {
     chunk := PNG_Chunk{};
     chunk.size = u32(_read_sized(file, u32be));
-    chunk.type = _read_sized(file, [4]byte);
+    chunk.type = u32(_read_sized(file, u32be));
 
     chunk.data = make([]byte, chunk.size);
     copy(chunk.data, file^);
@@ -698,7 +732,7 @@ _zlib_decompress :: proc(data: []byte) -> (dec_data: []byte, data_read: u32)
     return dec_data, data_read;
 }
 
-_png_paeth_predict :: prc(a, b, c: i32) -> i32
+_png_paeth_predict :: proc(a, b, c: i32) -> i32
 {
     p := a + b - c;
     pa := abs(p-a);
@@ -719,7 +753,79 @@ PNG_Filter :: enum
     Paeth,
 }
 
-_png_defilter :: proc(data: []byte, size: u32, ihdr: ^PNG_Chunk)
+_png_defilter :: proc(data: []byte, size: u32, ihdr: ^PNG_Chunk) -> []byte
 {
+    x := u32(_read_sized(&ihdr.data, u32be));
+    y := u32(_read_sized(&ihdr.data, u32be));
+    bit_depth := ihdr.data[8];
+    pixel_depth := byte(1);
 
+    prev_row := []byte{};
+    row := data;
+    stride := x*u32(pixel_depth);
+
+    image := make([]byte, x*y*u32(pixel_depth));
+    working := image;
+    for i in 0..<(y)
+    {
+        working = image[i*stride:];
+        filter := PNG_Filter(row[0]);
+        row = row[1:];
+
+        switch filter
+        {
+        case .None:
+            for j in 0..<(x) do
+                working[j] = row[j];
+            
+        case .Sub:
+            for j in 0..<(x)
+            {
+                a := byte(0);
+                if j != 0 do
+                    a = working[j-1];
+                working[j] = row[j] + a;
+            }
+
+        case .Up:
+            for j in 0..<(x)
+            {
+                b := prev_row[j];
+                working[j] = row[j] + b;
+            }
+
+        case .Avg:
+            for j in 0..<(x)
+            {
+                a := byte(0);
+                b := prev_row[j];
+                if j != 0 do
+                    a = working[j-1];
+
+                working[j] = row[j] + (a+b)/2;
+            }
+
+        case .Paeth:
+            for j in 0..<(x)
+            {
+                a := byte(0);
+                b := prev_row[j];
+                c := byte(0);
+
+                if j != 0
+                {
+                    a = working[j - 1];
+                    c = prev_row[j - 1];
+                }
+
+                paeth := _png_paeth_predict(i32(a), i32(b), i32(c));
+                working[j] = row[j] + byte(paeth);
+            }
+        }
+
+        prev_row = working;
+        row = row[stride:];
+    }
+
+    return image;
 }

@@ -2,6 +2,7 @@ package rendering
 
 using import "core:fmt"
 using import "core:math"
+using import "core:math/linalg"
 import "core:strings"
 import "shared:gl"
 
@@ -34,7 +35,7 @@ load_image :: proc(filepath: string) -> (u32, Texture_Info)
     return 0, Texture_Info{};
 }
 
-color_texture :: proc(color: Vec4, normalize: bool) -> Texture
+color_texture :: proc(color: Vector4, normalize: bool) -> Texture
 {
     t := Texture{};
     gl.GenTextures(1, &t.diffuse);
@@ -59,7 +60,7 @@ color_texture :: proc(color: Vec4, normalize: bool) -> Texture
     return t;
 }
 
-texture_pallette :: proc(colors: []Vec4, normalize: b32) -> Texture
+texture_pallette :: proc(colors: []Vector4, normalize: b32) -> Texture
 {
     t := Texture{};
     gl.GenTextures(1, &t.diffuse);
@@ -98,10 +99,10 @@ texture_pallette :: proc(colors: []Vec4, normalize: b32) -> Texture
     return t;
 }
 
-texture_pallete_index :: proc(pallete: Texture, i: int) -> Vec2
+texture_pallete_index :: proc(pallete: Texture, i: int) -> Vector2
 {
     s := int(pallete.info.width);
-    coord := Vec2{f32(i%s), f32(i/s)};
+    coord := Vector2{f32(i%s), f32(i/s)};
     uv := coord / f32(s);
     return uv;
 }

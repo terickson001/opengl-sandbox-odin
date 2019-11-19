@@ -1,6 +1,7 @@
 package rendering
 
 using import "core:math"
+using import "core:math/linalg"
 using import "core:fmt"
 
 import "core:os"
@@ -11,11 +12,11 @@ using import "../util"
 
 Mesh :: struct
 {
-    vertices   : [dynamic]Vec3,
-    uvs        : [dynamic]Vec2,
-    normals    : [dynamic]Vec3,
-    tangents   : [dynamic]Vec3,
-    bitangents : [dynamic]Vec3,
+    vertices   : [dynamic]Vector3,
+    uvs        : [dynamic]Vector2,
+    normals    : [dynamic]Vector3,
+    tangents   : [dynamic]Vector3,
+    bitangents : [dynamic]Vector3,
 
     indexed    : bool,
     indices    : [dynamic]u16,
@@ -34,11 +35,11 @@ init_mesh :: proc() -> Mesh
 {
     m: Mesh;
 
-    m.vertices   = make([dynamic]Vec3);
-    m.uvs        = make([dynamic]Vec2);
-    m.normals    = make([dynamic]Vec3);
-    m.tangents   = make([dynamic]Vec3);
-    m.bitangents = make([dynamic]Vec3);
+    m.vertices   = make([dynamic]Vector3);
+    m.uvs        = make([dynamic]Vector2);
+    m.normals    = make([dynamic]Vector3);
+    m.tangents   = make([dynamic]Vector3);
+    m.bitangents = make([dynamic]Vector3);
     m.indices    = make([dynamic]u16);
 
     return m;
@@ -59,9 +60,9 @@ load_obj :: proc(filepath : string) -> Mesh
     norm_indices := make([dynamic]u16);
     uv_indices   := make([dynamic]u16);
     
-    temp_verts := make([dynamic]Vec3);
-    temp_norms := make([dynamic]Vec3);
-    temp_uvs   := make([dynamic]Vec2);
+    temp_verts := make([dynamic]Vector3);
+    temp_norms := make([dynamic]Vector3);
+    temp_uvs   := make([dynamic]Vector2);
     
     for len(file) > 0
     {
@@ -77,19 +78,19 @@ load_obj :: proc(filepath : string) -> Mesh
 
         if header == "v"
         {
-            vert := Vec3{};
+            vert := Vector3{};
             read_fmt(&file, "%f %f %f\n", &vert.x, &vert.y, &vert.z);
             append(&temp_verts, vert);
         }
         else if header == "vn"
         {
-            norm := Vec3{};
+            norm := Vector3{};
             read_fmt(&file, "%f %f %f\n", &norm.x, &norm.y, &norm.z);
             append(&temp_norms, norm);
         }
         else if header == "vt"
         {
-            uv := Vec2{};
+            uv := Vector2{};
             read_fmt(&file, "%f %f\n", &uv.x, &uv.y);
             append(&temp_uvs, uv);
         }
@@ -134,7 +135,7 @@ is_near :: proc(v1: f32, v2: f32) -> bool
     return abs(v1-v2) < 0.01;
 }
 
-_get_similar_vertex :: proc(vert: Vec3, norm: Vec3, uv: Vec2, verts: []Vec3, norms: []Vec3, uvs: []Vec2) -> (u16, bool)
+_get_similar_vertex :: proc(vert: Vector3, norm: Vector3, uv: Vector2, verts: []Vector3, norms: []Vector3, uvs: []Vector2) -> (u16, bool)
 {
     for _, i in verts
     {
@@ -156,12 +157,12 @@ _get_similar_vertex :: proc(vert: Vec3, norm: Vec3, uv: Vec2, verts: []Vec3, nor
 
 index_mesh :: proc(m: ^Mesh)
 {
-    temp_verts := make([dynamic]Vec3);
-    temp_norms := make([dynamic]Vec3);
-    temp_uvs   := make([dynamic]Vec2);
+    temp_verts := make([dynamic]Vector3);
+    temp_norms := make([dynamic]Vector3);
+    temp_uvs   := make([dynamic]Vector2);
 
-    temp_tangents   := make([dynamic]Vec3);
-    temp_bitangents := make([dynamic]Vec3);
+    temp_tangents   := make([dynamic]Vector3);
+    temp_bitangents := make([dynamic]Vector3);
 
     for _, i in m.vertices
     {
@@ -282,7 +283,7 @@ compute_tangent_basis :: proc(m: ^Mesh)
         t := &m.tangents[i];
         n := m.normals[i];
 
-        t^ = norm(t^ - n * dot(n, t^));
+        t^ = normalize(t^ - n * dot(n, t^));
         append(&m.bitangents, cross(n, t^));
     }
 }
@@ -291,23 +292,23 @@ create_mesh_vbos :: proc(m: ^Mesh)
 {
     gl.GenBuffers(1, &m.vbuff);
     gl.BindBuffer(gl.ARRAY_BUFFER, m.vbuff);
-    gl.BufferData(gl.ARRAY_BUFFER, len(m.vertices)*size_of(Vec3), &m.vertices[0], gl.STATIC_DRAW);
+    gl.BufferData(gl.ARRAY_BUFFER, len(m.vertices)*size_of(Vector3), &m.vertices[0], gl.STATIC_DRAW);
 
     gl.GenBuffers(1, &m.uvbuff);
     gl.BindBuffer(gl.ARRAY_BUFFER, m.uvbuff);
-    gl.BufferData(gl.ARRAY_BUFFER, len(m.uvs)*size_of(Vec2), &m.uvs[0], gl.STATIC_DRAW);
+    gl.BufferData(gl.ARRAY_BUFFER, len(m.uvs)*size_of(Vector2), &m.uvs[0], gl.STATIC_DRAW);
 
     gl.GenBuffers(1, &m.nbuff);
     gl.BindBuffer(gl.ARRAY_BUFFER, m.nbuff);
-    gl.BufferData(gl.ARRAY_BUFFER, len(m.normals)*size_of(Vec3), &m.normals[0], gl.STATIC_DRAW);
+    gl.BufferData(gl.ARRAY_BUFFER, len(m.normals)*size_of(Vector3), &m.normals[0], gl.STATIC_DRAW);
 
     gl.GenBuffers(1, &m.tbuff);
     gl.BindBuffer(gl.ARRAY_BUFFER, m.tbuff);
-    gl.BufferData(gl.ARRAY_BUFFER, len(m.tangents)*size_of(Vec3), &m.tangents[0], gl.STATIC_DRAW);
+    gl.BufferData(gl.ARRAY_BUFFER, len(m.tangents)*size_of(Vector3), &m.tangents[0], gl.STATIC_DRAW);
 
     gl.GenBuffers(1, &m.btbuff);
     gl.BindBuffer(gl.ARRAY_BUFFER, m.btbuff);
-    gl.BufferData(gl.ARRAY_BUFFER, len(m.bitangents)*size_of(Vec3), &m.bitangents[0], gl.STATIC_DRAW);
+    gl.BufferData(gl.ARRAY_BUFFER, len(m.bitangents)*size_of(Vector3), &m.bitangents[0], gl.STATIC_DRAW);
 
     if m.indexed
     {
