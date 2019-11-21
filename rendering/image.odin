@@ -324,22 +324,64 @@ load_dds :: proc(filepath: string) -> (u32, Texture_Info)
     return texture_id, info;
 }
 
-
-load_png :: proc(filepath: string) -> (u32, Texture_Info)
+PNG :: struct
 {
-    chunks := make([dynamic]PNG_Chunk);
-    file, ok := os.read_entire_file(filepath);
-    if !ok
-    {
-        eprintf("Could not open file %q\n", filepath);
-        return 0, Texture_Info{};
-    }
+    width, height: u32,
+    depth: u32,
+    palette: [1024]byte,
+    comp, filter: u32,
+    interlace: u32,
     
+}
+
+_png_err :: proc(test: bool, file, message: string)
+{
+    if !test do
+        eprintf("ERROR: %s: %s\n", file, message);
+}
+
+load_png :: proc(filepath: string) -> (id: u32, info: Texture_Info)
+{
+    id = 0;
+    info = Texture_Info{};
+
+    file, ok := os.read_entire_file(filepath);
+    if _png_err(!ok, filepath, "Could not open file") do return;
+
+    p := PNG{};
+    first := true;
     chunk := _png_read_chunk(&file);
-    for u32(chunk.type) != PNG_IEND
+    for
     {
-        append(&chunks, chunk);
         chunk = _png_read_chunk(&file);
+
+        switch chunk.type
+        {
+        case PNG_IHDR:
+            if _png_err(!first, filepath, "Multiple IHDR") do return;
+            if _png_err(chunk.size2
+            if chunk.size != 13
+            {
+                eprintf("ERROR: %s: Invalid IHDR length\n", filepath);
+                return 0, Texture_Info{};
+            }
+
+            p.width     = u32(_read_sized(&chunk.data, u32be));
+            p.height    = u32(_read_sized(&chunk.data, u32be));
+            p.depth     = _read_sized(&chunk.data, byte);
+            p.color     = _read_sized(&chunk.data, byte);
+            p.comp      = _read_sized(&chunk.data, byte);
+            p.filter    = _read_sized(&chunk.data, byte);
+            p.interlace = _read_sized(&chunk.data, byte);
+
+            if _png_err(p.color > 6 || p.color == 1 || p.color == 5,
+                        filepath, "Invalid color type") do return;
+            if _png_err(color == 3 && p.depth == 16,
+                        filepath, "Invalid color type") do return;
+
+            
+            continue;
+        }
     }
     
     return 0, Texture_Info{};
