@@ -331,7 +331,7 @@ PNG :: struct
     palette: [1024]byte,
     comp, filter: u32,
     interlace: u32,
-    
+    data, [dynamic]byte,
 }
 
 _png_err :: proc(test: bool, file, message: string)
@@ -349,6 +349,8 @@ load_png :: proc(filepath: string) -> (id: u32, info: Texture_Info)
     if _png_err(!ok, filepath, "Could not open file") do return;
 
     p := PNG{};
+    pallete_size := 0;
+    pal_len := 0;
     first := true;
     chunk := _png_read_chunk(&file);
     for
@@ -358,13 +360,9 @@ load_png :: proc(filepath: string) -> (id: u32, info: Texture_Info)
         switch chunk.type
         {
         case PNG_IHDR:
-            if _png_err(!first, filepath, "Multiple IHDR") do return;
-            if _png_err(chunk.size2
-            if chunk.size != 13
-            {
-                eprintf("ERROR: %s: Invalid IHDR length\n", filepath);
-                return 0, Texture_Info{};
-            }
+            if _png_err(!first, filepath, "Multiple IHDR") ||
+               _png_err(chunk.size != 13, filepath, "Invalid IHDR length")
+            do return;
 
             p.width     = u32(_read_sized(&chunk.data, u32be));
             p.height    = u32(_read_sized(&chunk.data, u32be));
@@ -374,14 +372,87 @@ load_png :: proc(filepath: string) -> (id: u32, info: Texture_Info)
             p.filter    = _read_sized(&chunk.data, byte);
             p.interlace = _read_sized(&chunk.data, byte);
 
-            if _png_err(p.color > 6 || p.color == 1 || p.color == 5,
-                        filepath, "Invalid color type") do return;
-            if _png_err(color == 3 && p.depth == 16,
-                        filepath, "Invalid color type") do return;
+            if _png_err(p.color > 6, filepath, "Invalid color type") ||
+               _png_err(p.color == 1 || p.color == 5, filepath, "Invalid color type") ||
+               _png_err(color == 3 && p.depth == 16, filepath, "Invalid color type")
+            do return;
 
+            if color == 3 do pallete_size = 3;
+
+            switch color
+            {
+            case 0: img_components = 1;
+            case 2: img_components = 3;
+            case 4: img_components = 2;
+            case 6: img_components = 4;
+            }
             
+            if pallette_size != 0
+            {
+                img_components = 1; // pallete index
+                
+                if _png_err((1<<30) / p.width / 4 < p.height, filepath, "too large")
+                do return;
+            }
             continue;
+
+        case PNG_PLTE:
+            if _png_err(first, filepath, "First chunk not IHDR") ||
+               _png_err(chunk.size > 256*3, filepath, "Invalid PLTE")
+            do return;
+
+            pal_len := chunk.size / 3;
+            for i in 0..<(pal_len)
+            {
+                p.pallete[i*4+0] = _read_sized(&chunk.data, byte);
+                p.pallete[i*4+1] = _read_sized(&chunk.data, byte);
+                p.pallete[i*4+2] = _read_sized(&chunk.data, byte);
+                p.pallete[i*4+3] = 255;
+            }
+
+        case PNG_tRNS:
+            if _png_err(first, filepath, "First chunk not IHDR") ||
+               _png_err(len(p.data)>0, filepath, "tRNS after IDAT")
+            do return;
+
+            if pallete_size != 0
+            {
+                if _png_err(pal_len == 0, filepath, "tRNS before PLTE") ||
+                   _png_err(chunk.size > pal_len, filepath, "Invalid tRNS")
+                do return;
+
+                pallete_size = 4;
+                for i in 0..<(chunk.size) do
+                    palette[i*4+3] = _read_sized(&chunk.data, byte);
+            }
+            else
+            {
+                if _png_err(~img_components & 1, filepath, "tRNS with alpha channel") ||
+                   _png_err(chunk.size != u32(img_components*2), filepath, "Invalid tRNS")
+                do return;
+
+                if p.depth == 16 do
+                    for i in 0..<(img_components) do
+                        trns16[i] = u16(_read_sized(&chunk.data, u16be));
+                else do
+                    for i in 0..<(img_components) do
+                        trns[i] = _read_sized(&chunk.data, byte);
+            }
+            
+        case PNG_IDAT:
+            if _png_err(first, filepath, "First chunk not IHDR") ||
+               _png_err(first, filepath, "No PLTE")
+            do return;
+
+            if p.data == nil do
+                p.data = make([dynamic]byte);
+
+            append(p.data, ..chunk.data);
         }
+
+        
+        
+        delete(chunk.data);
     }
     
     return 0, Texture_Info{};
