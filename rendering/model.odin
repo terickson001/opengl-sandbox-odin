@@ -1,22 +1,22 @@
 package rendering
 
-using import "core:math"
-using import "core:math/linalg"
-using import "core:fmt"
+import "core:math"
+import "core:math/linalg"
+import "core:fmt"
 
 import "core:os"
 import "core:strings"
 import "shared:gl"
 
-using import "../util"
+import "../util"
 
 Mesh :: struct
 {
-    vertices   : [dynamic]Vector3,
-    uvs        : [dynamic]Vector2,
-    normals    : [dynamic]Vector3,
-    tangents   : [dynamic]Vector3,
-    bitangents : [dynamic]Vector3,
+    vertices   : [dynamic][3]f32,
+    uvs        : [dynamic][2]f32,
+    normals    : [dynamic][3]f32,
+    tangents   : [dynamic][3]f32,
+    bitangents : [dynamic][3]f32,
 
     indexed    : bool,
     indices    : [dynamic]u16,
@@ -35,11 +35,11 @@ init_mesh :: proc() -> Mesh
 {
     m: Mesh;
 
-    m.vertices   = make([dynamic]Vector3);
-    m.uvs        = make([dynamic]Vector2);
-    m.normals    = make([dynamic]Vector3);
-    m.tangents   = make([dynamic]Vector3);
-    m.bitangents = make([dynamic]Vector3);
+    m.vertices   = make([dynamic][3]f32);
+    m.uvs        = make([dynamic][2]f32);
+    m.normals    = make([dynamic][3]f32);
+    m.tangents   = make([dynamic][3]f32);
+    m.bitangents = make([dynamic][3]f32);
     m.indices    = make([dynamic]u16);
 
     return m;
@@ -50,7 +50,7 @@ load_obj :: proc(filepath : string) -> Mesh
     file_buf, ok := os.read_entire_file(filepath);
     if !ok
     {
-        eprintf("Couldn't open .obj %q for reading\n", filepath);
+        fmt.eprintf("Couldn't open .obj %q for reading\n", filepath);
         return Mesh{};
     }
     file := string(file_buf);
@@ -60,44 +60,44 @@ load_obj :: proc(filepath : string) -> Mesh
     norm_indices := make([dynamic]u16);
     uv_indices   := make([dynamic]u16);
     
-    temp_verts := make([dynamic]Vector3);
-    temp_norms := make([dynamic]Vector3);
-    temp_uvs   := make([dynamic]Vector2);
+    temp_verts := make([dynamic][3]f32);
+    temp_norms := make([dynamic][3]f32);
+    temp_uvs   := make([dynamic][2]f32);
     
     for len(file) > 0
     {
         if file[0] == '#'
         {
-            read_line(&file, nil);
+            util.read_line(&file, nil);
             continue;
         }
         
         header: string;
-        if !read_fmt(&file, "%s ", &header) do
+        if !util.read_fmt(&file, "%s ", &header) do
             break;
 
         if header == "v"
         {
-            vert := Vector3{};
-            read_fmt(&file, "%f %f %f\n", &vert.x, &vert.y, &vert.z);
+            vert := [3]f32{};
+            util.read_fmt(&file, "%f %f %f\n", &vert.x, &vert.y, &vert.z);
             append(&temp_verts, vert);
         }
         else if header == "vn"
         {
-            norm := Vector3{};
-            read_fmt(&file, "%f %f %f\n", &norm.x, &norm.y, &norm.z);
+            norm := [3]f32{};
+            util.read_fmt(&file, "%f %f %f\n", &norm.x, &norm.y, &norm.z);
             append(&temp_norms, norm);
         }
         else if header == "vt"
         {
-            uv := Vector2{};
-            read_fmt(&file, "%f %f\n", &uv.x, &uv.y);
+            uv := [2]f32{};
+            util.read_fmt(&file, "%f %f\n", &uv.x, &uv.y);
             append(&temp_uvs, uv);
         }
         else if header == "f"
         {
             vi, ni, uvi : [3]u16;
-            read_fmt(&file, "%d/%d/%d %d/%d/%d %d/%d/%d\n",
+            util.read_fmt(&file, "%d/%d/%d %d/%d/%d %d/%d/%d\n",
                      &vi[0], &uvi[0], &ni[0],
                      &vi[1], &uvi[1], &ni[1],
                      &vi[2], &uvi[2], &ni[2]
@@ -108,7 +108,7 @@ load_obj :: proc(filepath : string) -> Mesh
         }
         else if header == "s" || header == "usemtl"
         {
-            read_line(&file, nil);
+            util.read_line(&file, nil);
         }
     }
 
@@ -135,7 +135,7 @@ is_near :: proc(v1: f32, v2: f32) -> bool
     return abs(v1-v2) < 0.01;
 }
 
-_get_similar_vertex :: proc(vert: Vector3, norm: Vector3, uv: Vector2, verts: []Vector3, norms: []Vector3, uvs: []Vector2) -> (u16, bool)
+_get_similar_vertex :: proc(vert: [3]f32, norm: [3]f32, uv: [2]f32, verts: [][3]f32, norms: [][3]f32, uvs: [][2]f32) -> (u16, bool)
 {
     for _, i in verts
     {
@@ -157,12 +157,12 @@ _get_similar_vertex :: proc(vert: Vector3, norm: Vector3, uv: Vector2, verts: []
 
 index_mesh :: proc(m: ^Mesh)
 {
-    temp_verts := make([dynamic]Vector3);
-    temp_norms := make([dynamic]Vector3);
-    temp_uvs   := make([dynamic]Vector2);
+    temp_verts := make([dynamic][3]f32);
+    temp_norms := make([dynamic][3]f32);
+    temp_uvs   := make([dynamic][2]f32);
 
-    temp_tangents   := make([dynamic]Vector3);
-    temp_bitangents := make([dynamic]Vector3);
+    temp_tangents   := make([dynamic][3]f32);
+    temp_bitangents := make([dynamic][3]f32);
 
     for _, i in m.vertices
     {
@@ -283,8 +283,8 @@ compute_tangent_basis :: proc(m: ^Mesh)
         t := &m.tangents[i];
         n := m.normals[i];
 
-        t^ = normalize(t^ - n * dot(n, t^));
-        append(&m.bitangents, cross(n, t^));
+        t^ = linalg.normalize(t^ - n * linalg.dot(n, t^));
+        append(&m.bitangents, linalg.cross(n, t^));
     }
 }
 
@@ -292,23 +292,23 @@ create_mesh_vbos :: proc(m: ^Mesh)
 {
     gl.GenBuffers(1, &m.vbuff);
     gl.BindBuffer(gl.ARRAY_BUFFER, m.vbuff);
-    gl.BufferData(gl.ARRAY_BUFFER, len(m.vertices)*size_of(Vector3), &m.vertices[0], gl.STATIC_DRAW);
+    gl.BufferData(gl.ARRAY_BUFFER, len(m.vertices)*size_of([3]f32), &m.vertices[0], gl.STATIC_DRAW);
 
     gl.GenBuffers(1, &m.uvbuff);
     gl.BindBuffer(gl.ARRAY_BUFFER, m.uvbuff);
-    gl.BufferData(gl.ARRAY_BUFFER, len(m.uvs)*size_of(Vector2), &m.uvs[0], gl.STATIC_DRAW);
+    gl.BufferData(gl.ARRAY_BUFFER, len(m.uvs)*size_of([2]f32), &m.uvs[0], gl.STATIC_DRAW);
 
     gl.GenBuffers(1, &m.nbuff);
     gl.BindBuffer(gl.ARRAY_BUFFER, m.nbuff);
-    gl.BufferData(gl.ARRAY_BUFFER, len(m.normals)*size_of(Vector3), &m.normals[0], gl.STATIC_DRAW);
+    gl.BufferData(gl.ARRAY_BUFFER, len(m.normals)*size_of([3]f32), &m.normals[0], gl.STATIC_DRAW);
 
     gl.GenBuffers(1, &m.tbuff);
     gl.BindBuffer(gl.ARRAY_BUFFER, m.tbuff);
-    gl.BufferData(gl.ARRAY_BUFFER, len(m.tangents)*size_of(Vector3), &m.tangents[0], gl.STATIC_DRAW);
+    gl.BufferData(gl.ARRAY_BUFFER, len(m.tangents)*size_of([3]f32), &m.tangents[0], gl.STATIC_DRAW);
 
     gl.GenBuffers(1, &m.btbuff);
     gl.BindBuffer(gl.ARRAY_BUFFER, m.btbuff);
-    gl.BufferData(gl.ARRAY_BUFFER, len(m.bitangents)*size_of(Vector3), &m.bitangents[0], gl.STATIC_DRAW);
+    gl.BufferData(gl.ARRAY_BUFFER, len(m.bitangents)*size_of([3]f32), &m.bitangents[0], gl.STATIC_DRAW);
 
     if m.indexed
     {

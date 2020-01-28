@@ -1,6 +1,6 @@
 package rendering
 
-using import "core:fmt"
+import "core:fmt"
 import "shared:gl"
 import "core:os"
 import "core:strings"
@@ -45,7 +45,7 @@ compile_shader :: proc(filepath: string, kind: u32) -> u32
     
     if code, ok = os.read_entire_file(filepath); !ok
     {
-        eprintf("Failed to open shader '%s'\n", filepath);
+        fmt.eprintf("Failed to open shader '%s'\n", filepath);
         return 0;
     }
     
@@ -53,7 +53,7 @@ compile_shader :: proc(filepath: string, kind: u32) -> u32
     info_log_length: i32;
 
     // Compile
-    printf("Compiling shader: %s\n", filepath);
+    fmt.printf("Compiling shader: %s\n", filepath);
     source := &code[0];
     gl.ShaderSource(id, 1, &source, nil);
     gl.CompileShader(id);
@@ -67,7 +67,7 @@ compile_shader :: proc(filepath: string, kind: u32) -> u32
         defer delete(err_msg);
         
         gl.GetShaderInfoLog(id, info_log_length-1, nil, &err_msg[0]);
-        eprintf("%s\n", err_msg);
+        fmt.eprintf("%s\n", transmute(cstring)&err_msg[0]);
         return 0;
     }
 
@@ -79,12 +79,12 @@ load_shader :: proc(vs_filepath, fs_filepath: string) -> u32
     vs_code, fs_code: []byte;
     if vs_code, ok := os.read_entire_file(vs_filepath); !ok
     {
-        eprintf("Failed to open vertex shader '%s'\n", vs_filepath);
+        fmt.eprintf("Failed to open vertex shader '%s'\n", vs_filepath);
         return 0;
     }
     if fs_code, ok := os.read_entire_file(fs_filepath); !ok
     {
-        eprintf("Failed to open fragment shader '%s'\n", vs_filepath);
+        fmt.eprintf("Failed to open fragment shader '%s'\n", vs_filepath);
         return 0;
     }
 
@@ -93,7 +93,7 @@ load_shader :: proc(vs_filepath, fs_filepath: string) -> u32
     fs_id := compile_shader(fs_filepath, gl.FRAGMENT_SHADER);
 
     // Link
-    println("Linking program");
+    fmt.println("Linking program");
     program_id := gl.CreateProgram();
     gl.AttachShader(program_id, vs_id);
     gl.AttachShader(program_id, fs_id);
@@ -111,7 +111,7 @@ load_shader :: proc(vs_filepath, fs_filepath: string) -> u32
         defer delete(err_msg);
         
         gl.GetProgramInfoLog(program_id, info_log_length-1, nil, &err_msg[0]);
-        eprintf("%s\n", err_msg);
+        fmt.eprintf("%s\n", err_msg);
         return 0;
     }
 

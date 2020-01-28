@@ -1,6 +1,6 @@
 package util
 
-using import "core:fmt"
+import "core:fmt"
 import "core:strings"
 import "core:strconv"
 import "core:os"
@@ -193,7 +193,7 @@ read_any :: proc(str: ^string, arg: any, verb: u8 = 'v') -> bool
             if str[0] == '"' || str[0] == '\'' do ok = read_string(str, kind);
             else do ok = read_ident(str, kind);
             
-            case: eprintf("Invalid type %T\n", kind);
+            case: fmt.eprintf("Invalid type %T\n", kind);
         }
 
         case 'f':
@@ -201,7 +201,7 @@ read_any :: proc(str: ^string, arg: any, verb: u8 = 'v') -> bool
         {
             case ^f32:  ok = read_float(str, kind);
             case ^f64:  ok = read_float(str, kind);
-            case: eprintf("Invalid type %T for specifier %%%c\n", kind, verb);
+            case: fmt.eprintf("Invalid type %T for specifier %%%c\n", kind, verb);
         }
 
         case 'd':
@@ -219,7 +219,7 @@ read_any :: proc(str: ^string, arg: any, verb: u8 = 'v') -> bool
             case ^u64:  ok = read_int(str, kind);
             case ^u128: ok = read_int(str, kind);
             
-            case: eprintf("Invalid type %T for specifier %%%c\n", kind, verb);
+            case: fmt.eprintf("Invalid type %T for specifier %%%c\n", kind, verb);
         }
         
         case 'q':
@@ -227,7 +227,7 @@ read_any :: proc(str: ^string, arg: any, verb: u8 = 'v') -> bool
         {
             case ^string: ok = read_string(str, kind);
 
-            case: eprintf("Invalid type %T for specifier %%%c\n", kind, verb);
+            case: fmt.eprintf("Invalid type %T for specifier %%%c\n", kind, verb);
         }
 
         case 's':
@@ -235,10 +235,10 @@ read_any :: proc(str: ^string, arg: any, verb: u8 = 'v') -> bool
         {
             case ^string: ok = read_ident(str, kind);
 
-            case: eprintf("Invalid type %T for specifier %%%c\n", kind, verb);
+            case: fmt.eprintf("Invalid type %T for specifier %%%c\n", kind, verb);
         }
      
-        case: eprintf("Invalid specifier %%%c\n", verb);
+        case: fmt.eprintf("Invalid specifier %%%c\n", verb);
     }
     
     return ok;
@@ -257,7 +257,7 @@ read_types :: proc(str: ^string, args: ..any) -> bool
     return true;
 }
 
-read_fmt :: proc(str: ^string, fmt: string, args: ..any) -> bool
+read_fmt :: proc(str: ^string, fmt_str: string, args: ..any) -> bool
 {
     ok: bool;
 
@@ -265,18 +265,18 @@ read_fmt :: proc(str: ^string, fmt: string, args: ..any) -> bool
     fidx := 0;
     aidx := 0;
     
-    for fidx < len(fmt)
+    for fidx < len(fmt_str)
     {
-        if fmt[fidx] != '%'
+        if fmt_str[fidx] != '%'
         {
             
-            if str[sidx] == fmt[fidx]
+            if str[sidx] == fmt_str[fidx]
             {
                 sidx += 1;
                 fidx += 1;
                 continue;
             }
-            else if fmt[fidx] == '\n' && strings.has_prefix(str[sidx:], "\r\n")
+            else if fmt_str[fidx] == '\n' && strings.has_prefix(str[sidx:], "\r\n")
             {
                 sidx += 2;
                 fidx += 1;
@@ -296,15 +296,15 @@ read_fmt :: proc(str: ^string, fmt: string, args: ..any) -> bool
         str^ = str[sidx:];
         sidx = 0;
         fidx += 1; // %
-        switch fmt[fidx]
+        switch fmt_str[fidx]
         {
             case 'd': fallthrough;
             case 'f': fallthrough;
             case 'q': fallthrough;
             case 's': fallthrough;
-            case 'v': ok = read_any(str, args[aidx], fmt[fidx]);
+            case 'v': ok = read_any(str, args[aidx], fmt_str[fidx]);
             case:
-                eprintf("Invalid format specifier '%%%c'\n", fmt[fidx]);
+                fmt.eprintf("Invalid format specifier '%%%c'\n", fmt_str[fidx]);
                 return false;
         }
         fidx += 1;

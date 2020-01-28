@@ -1,10 +1,12 @@
 package rendering
 
-using import "core:fmt"
-using import "core:math"
-using import "core:math/linalg"
+import "core:fmt"
+import "core:math"
+import "core:math/linalg"
+
 import "core:strings"
 import "shared:gl"
+import "shared:image"
 
 Texture_Info :: struct
 {
@@ -19,23 +21,7 @@ Texture :: struct
     specular: u32,
 }
 
-load_image :: proc(filepath: string) -> (u32, Texture_Info)
-{
-    dot := strings.last_index_byte(filepath, '.');
-    ext := filepath[dot:];
-    
-    switch ext
-    {
-        case "DDS": return load_dds(filepath);
-        case "tga": return load_tga(filepath);
-        case "bmp": return load_bmp(filepath);
-        case "png": return load_png(filepath);
-        case: eprintf("File %q is of unsupported filetype \".%s\"\n", filepath, ext);
-    }
-    return 0, Texture_Info{};
-}
-
-color_texture :: proc(color: Vector4, normalize: bool) -> Texture
+color_texture :: proc(color: [4]f32, normalize: bool) -> Texture
 {
     t := Texture{};
     gl.GenTextures(1, &t.diffuse);
@@ -52,15 +38,15 @@ color_texture :: proc(color: Vector4, normalize: bool) -> Texture
     gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.BindTexture(gl.TEXTURE_2D, 0);
 
-    t.normal, _   = load_png("./res/normal_default.png");
-    t.specular, _ = load_png("./res/specular_default.png");
+    t.normal   = image_texture("./res/normal_default.png");
+    t.specular = image_texture("./res/specular_default.png");
 
     t.info.width  = 1;
     t.info.height = 1;
     return t;
 }
 
-texture_pallette :: proc(colors: []Vector4, normalize: b32) -> Texture
+texture_pallette :: proc(colors: [][4]f32, normalize: b32) -> Texture
 {
     t := Texture{};
     gl.GenTextures(1, &t.diffuse);
@@ -90,8 +76,8 @@ texture_pallette :: proc(colors: []Vector4, normalize: b32) -> Texture
     gl.GenerateMipmap(gl.TEXTURE_2D);
     gl.BindTexture(gl.TEXTURE_2D, 0);
     
-    t.normal, _   = load_png("./res/normal_default.png");
-    t.specular, _ = load_png("./res/specular_default.png");
+    t.normal   = image_texture("./res/normal_default.png");
+    t.specular = image_texture("./res/specular_default.png");
 
     t.info.width  = u32(size);
     t.info.height = u32(size);
@@ -99,25 +85,86 @@ texture_pallette :: proc(colors: []Vector4, normalize: b32) -> Texture
     return t;
 }
 
-texture_pallete_index :: proc(pallete: Texture, i: int) -> Vector2
+texture_pallete_index :: proc(pallete: Texture, i: int) -> [2]f32
 {
     s := int(pallete.info.width);
-    coord := Vector2{f32(i%s), f32(i/s)};
+    coord := [2]f32{f32(i%s), f32(i/s)};
     uv := coord / f32(s);
     return uv;
+}
+
+image_texture :: proc(filepath: string) -> u32
+{
+    img := image.load(filepath);
+
+    pixel_depth := img.depth == 16 ? 2 : 1;
+    if img.flipped.y
+    {
+        row_size := u32(img.width) * (u32(img.format) & 7) * u32(pixel_depth);
+        end := row_size * img.height;
+        swap := make([]byte, row_size);
+        for row in 0..<(img.height/2)
+        {
+            a := img.data[row*row_size:(row+1)*row_size];
+            b := img.data[end-(row+1)*row_size:end-row*row_size];
+            copy(swap, a);
+            copy(a, b);
+            copy(b, swap);
+        }
+        delete(swap);
+    }
+
+    format := u32(gl.RGBA);
+    iformat := u32(gl.RGBA8);
+    
+    switch img.format
+    {
+    case .RGB:
+        format = gl.RGB;
+        iformat = img.depth == 16 ? gl.RGB16 : gl.RGB8;
+    case .RGBA:
+        format = gl.RGBA;
+        iformat = img.depth == 16 ? gl.RGBA16 : gl.RGBA8;
+    case .GRAY:
+        format = gl.RED;
+        iformat = img.depth == 16 ? gl.R16 : gl.R8;
+    case .GRAYA:
+        format = gl.RG;
+        iformat = img.depth == 16 ? gl.RG16 : gl.RG8;
+    }
+
+    type := u32(img.depth == 16 ? gl.UNSIGNED_SHORT : gl.UNSIGNED_BYTE);
+
+    texture_id: u32;
+    gl.GenTextures(1, &texture_id);
+    gl.BindTexture(gl.TEXTURE_2D, texture_id);
+
+    gl.TexStorage2D(gl.TEXTURE_2D, 1, u32(iformat), i32(img.width), i32(img.height));
+    gl.TexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, i32(img.width), i32(img.height), format, type, &img.data[0]);
+
+    delete(img.data);
+    
+    gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+    gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+    gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST_MIPMAP_LINEAR);
+    gl.GenerateMipmap(gl.TEXTURE_2D);
+
+    gl.BindTexture(gl.TEXTURE_2D, 0);
+    
+    return texture_id;
 }
 
 load_texture :: proc(diff, norm, spec: string) -> Texture
 {
     t := Texture{};
 
-    t.diffuse, t.info = load_image(diff);
+    t.diffuse = image_texture(diff);
+    if norm != "" do t.normal = image_texture(norm);
+    else          do t.normal = image_texture("./res/normal_default.png");
 
-    if norm != "" do t.normal, _ = load_image(norm);
-    else           do t.normal, _ = load_image("./res/normal_default.png");
-
-    if spec != "" do t.specular, _ = load_image(spec);
-    else           do t.specular, _ = load_image("./res/specular_default.png");
+    if spec != "" do t.specular = image_texture(spec);
+    else          do t.specular = image_texture("./res/specular_default.png");
 
     return t;
 }
