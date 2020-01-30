@@ -13,7 +13,7 @@ main :: proc()
     init_glfw();
     defer glfw.terminate();
     
-    window := init_window(768, 768, "[$float$] Hello, World!");
+    window := render.init_window(768, 768, "[$float$] Hello, World!");
     glfw.make_context_current(window.handle);
 
     init_gl();
@@ -28,7 +28,7 @@ main :: proc()
     gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
     // glfw.set_input_mode(window.handle, glfw.CURSOR, int(glfw.CURSOR_DISABLED));
-
+    
     vao: u32;
     gl.GenVertexArrays(1, &vao);
     gl.BindVertexArray(vao);
@@ -121,26 +121,4 @@ init_gl :: proc()
 {
     gl.load_up_to(4, 3, glfw.set_proc_address);
     fmt.println("GL initialized");
-}
-
-Window :: struct
-{
-    width, height : int,
-    handle        : glfw.Window_Handle,
-}
-
-init_window :: proc(w, h : int, title : string) -> Window
-{
-    win: Window;
-    win.width  = w;
-    win.height = h;
-    win.handle = glfw.create_window(w, h, title, nil, nil);
-    if win.handle == nil
-    {
-        fmt.eprintf("Failed to open GLFW window\n");
-        glfw.terminate();
-        os.exit(1);
-    }
-    
-    return win;
 }

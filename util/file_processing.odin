@@ -62,7 +62,7 @@ read_ident :: proc(str: ^string, ret: ^string) -> bool
     ret^ = string{};
     idx := 0;
 
-    if !(char_is_alpha(str[idx]) || str[idx] == '_') do
+    if !char_is_ident(str[idx]) do
         return false;
     
     for char_is_ident(str[idx]) do
@@ -96,6 +96,52 @@ read_string :: proc(str: ^string, ret: ^string) -> bool
 
     ret^ = str[1:idx];
     str^ = str[idx+1:];
+    
+    return true;
+}
+
+read_filepath :: proc(str: ^string, ret: ^string) -> bool
+{
+    ret^ = string{};
+    idx := 0;
+
+    char_is_path :: proc(c: u8) -> bool
+    {
+        return char_is_ident(c) || os.is_path_separator(rune(c));
+    }
+    if !char_is_path(str[idx]) do
+        return false;
+
+    for char_is_path(str[idx])
+    {
+        if str[idx] == '\\' do
+            idx += 1;
+        idx += 1;
+    }
+
+    ret^ = str[:idx];
+    str^ = str[idx:];
+
+    return true;
+}
+
+read_whitespace :: proc(str: ^string, newline := true) -> bool
+{
+    idx := 0;
+    
+    loop: for
+    {
+        switch str[idx]
+        {
+        case '\t', '\v', '\f', ' ': break;
+        case '\n', '\r': if !newline do break loop;
+        case: break loop;
+        }
+        idx += 1;
+    }
+
+    if idx > 0 do
+        str^ = str[idx:];
     
     return true;
 }
@@ -237,8 +283,36 @@ read_any :: proc(str: ^string, arg: any, verb: u8 = 'v') -> bool
 
             case: fmt.eprintf("Invalid type %T for specifier %%%c\n", kind, verb);
         }
-     
-        case: fmt.eprintf("Invalid specifier %%%c\n", verb);
+
+        case 'F':
+        switch kind in arg
+        {
+            case ^string: ok = read_filepath(str, kind);
+
+            case: fmt.eprintf("Invalid type %T for specifier %%%c\n", kind, verb);
+        }
+
+        case '_':
+            case: ok = read_whitespace(str, false);
+
+        case '>':
+            case: ok = read_whitespace(str, true);
+
+        case 'B':
+        true_str: string;
+        false_str: string;
+        if !read_fmt(str, "{%w%s%w,%w%s%w}", &true_str, &false_str)
+        {
+            fmt.eprintf("Format specifier %B must be followed by boolean specifiers: {true,false}\n");
+            break;
+        }        
+        switch kind in arg
+        {
+            case ^bool: ok = read_custom_bool(str, true_str, false_str, kind);
+
+            case: fmt.eprintf("Invalid type %T for specifier %%%c\n", kind, verb);
+        }
+        case: fmt.eprintf("Invalid format specifier %%%c\n", verb);
     }
     
     return ok;
@@ -296,17 +370,22 @@ read_fmt :: proc(str: ^string, fmt_str: string, args: ..any) -> bool
         str^ = str[sidx:];
         sidx = 0;
         fidx += 1; // %
-        switch fmt_str[fidx]
-        {
-            case 'd': fallthrough;
-            case 'f': fallthrough;
-            case 'q': fallthrough;
-            case 's': fallthrough;
-            case 'v': ok = read_any(str, args[aidx], fmt_str[fidx]);
-            case:
-                fmt.eprintf("Invalid format specifier '%%%c'\n", fmt_str[fidx]);
-                return false;
-        }
+
+        arg: any;
+        if aidx < len(args) do
+            arg = args[aidx];
+        ok = read_any(str, arg, fmt_str[fidx]);
+        /* switch fmt_str[fidx] */
+        /* { */
+        /*     case 'd': fallthrough; */
+        /*     case 'f': fallthrough; */
+        /*     case 'q': fallthrough; */
+        /*     case 's': fallthrough; */
+        /*     case 'v': ok = read_any(str, args[aidx], fmt_str[fidx]); */
+        /*     case: */
+        /*         fmt.eprintf("Invalid format specifier '%%%c'\n", fmt_str[fidx]); */
+        /*         return false; */
+        /* } */
         fidx += 1;
         aidx += 1;
         if !ok do return false;

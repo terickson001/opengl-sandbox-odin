@@ -135,6 +135,10 @@ image_texture :: proc(filepath: string) -> u32
 
     type := u32(img.depth == 16 ? gl.UNSIGNED_SHORT : gl.UNSIGNED_BYTE);
 
+    /* type := u32(gl.HALF_FLOAT); */
+    /* format := u32(gl.BGR); */
+    /* iformat := u32(gl.RGB16F); */
+    
     texture_id: u32;
     gl.GenTextures(1, &texture_id);
     gl.BindTexture(gl.TEXTURE_2D, texture_id);

@@ -8,17 +8,19 @@ Keyboard :: struct
     keys: [316]Button_State,
     text_buffer: ^[dynamic]byte,
 }
+@static KEYBOARD: Keyboard;
 
-update_keystate :: proc(window: ^glfw.Window, keycode, scancode, action, mods: i32)
+update_keystate :: proc(window: ^glfw.Window_Handle,
+                        keycode, scancode, action, mods: i32)
 {
-    i32 code = keycode - 32;
+    code := keycode - 32;
     if code > 316
     {
         fmt.eprintf("Keycode '%d' out of range\n", keycode);
         return;
     }
 
-    #partial switch action
+    switch glfw.Key_State(action)
     {
         case glfw.PRESS:   KEYBOARD.keys[code] = .Pressed;
         case glfw.RELEASE: KEYBOARD.keys[code] = .Released;
@@ -36,7 +38,7 @@ get_keystate :: proc(k: int) -> Button_State
     }
 
     ret := KEYBOARD.keys[code];
-    #parital switch ret
+    #partial switch ret
     {
         case .Pressed, .Repeat: KEYBOARD.keys[code] = .Down;
         case .Released:         KEYBOARD.keys[code] = .Up;
@@ -48,7 +50,7 @@ get_keystate :: proc(k: int) -> Button_State
 key_down :: proc(k: int) -> bool
 {
     state := get_keystate(k);
-    if .Pressed <= state && state <- .Repeat do
+    if Button_State.Pressed <= state && state <= .Repeat do
         return true;
 
     code := k - 32;
@@ -91,7 +93,7 @@ key_released :: proc(k: int) -> bool
 
 keyboard_text_hook :: proc(text_buffer: ^[dynamic]byte)
 {
-    KEYBOARD.text_buff = text_buffer;
+    KEYBOARD.text_buffer = text_buffer;
 }
 
 keyboard_text_unhook :: proc()
@@ -99,7 +101,7 @@ keyboard_text_unhook :: proc()
     KEYBOARD.text_buffer = nil;
 }
 
-keyboard_char_callback :: proc(window: ^glfw.Window, u32 codepoint)
+keyboard_char_callback :: proc(window: ^glfw.Window_Handle, codepoint: u32)
 {
     if KEYBOARD.text_buffer != nil do
         append(KEYBOARD.text_buffer, byte(codepoint));
