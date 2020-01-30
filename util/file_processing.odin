@@ -146,6 +146,28 @@ read_whitespace :: proc(str: ^string, newline := true) -> bool
     return true;
 }
 
+read_custom_bool :: proc(str: ^string, true_str: string, false_str: string, ret: ^bool) -> bool
+{
+    ret^ = false;
+
+    if strings.compare(str^, true_str) == 0
+    {
+        ret^ = true;
+        str^ = str[len(true_str):];
+    }
+    else if strings.compare(str^, false_str) == 0
+    {
+        ret^ = false;
+        str^ = str[len(false_str):];
+    }
+    else
+    {
+        return false;
+    }
+
+    return true;
+}
+
 read_int :: proc(str: ^string, ret: $T/^$E) -> bool
 {
     ret^ = 0;
@@ -293,10 +315,10 @@ read_any :: proc(str: ^string, arg: any, verb: u8 = 'v') -> bool
         }
 
         case '_':
-            case: ok = read_whitespace(str, false);
+        ok = read_whitespace(str, false);
 
         case '>':
-            case: ok = read_whitespace(str, true);
+        ok = read_whitespace(str, true);
 
         case 'B':
         true_str: string;
@@ -374,18 +396,41 @@ read_fmt :: proc(str: ^string, fmt_str: string, args: ..any) -> bool
         arg: any;
         if aidx < len(args) do
             arg = args[aidx];
-        ok = read_any(str, arg, fmt_str[fidx]);
-        /* switch fmt_str[fidx] */
-        /* { */
-        /*     case 'd': fallthrough; */
-        /*     case 'f': fallthrough; */
-        /*     case 'q': fallthrough; */
-        /*     case 's': fallthrough; */
-        /*     case 'v': ok = read_any(str, args[aidx], fmt_str[fidx]); */
-        /*     case: */
-        /*         fmt.eprintf("Invalid format specifier '%%%c'\n", fmt_str[fidx]); */
-        /*         return false; */
-        /* } */
+        // ok = read_any(str, arg, fmt_str[fidx]);
+        switch fmt_str[fidx]
+        {
+        case 'd': fallthrough;
+        case 'f': fallthrough;
+        case 'q': fallthrough;
+        case 's': fallthrough;
+        case 'F': fallthrough;
+        case '_': fallthrough;
+        case '>': fallthrough;
+        case 'b': fallthrough;
+        case 'v': ok = read_any(str, args[aidx], fmt_str[fidx]);
+
+        case 'B':
+            fmt_copy := fmt_str[fidx+1:];
+            true_str: string;
+            false_str: string;
+            if !read_fmt(&fmt_copy, "{%w%s%w,%w%s%w}", &true_str, &false_str)
+            {
+                fmt.eprintf("Format specifier %B must be followed by boolean specifiers: {true,false}\n");
+                break;
+            }
+            
+            fidx += len(fmt_str) - len(fmt_copy)-1;
+            switch kind in arg
+            {
+            case ^bool: ok = read_custom_bool(str, true_str, false_str, kind);
+                
+            case: fmt.eprintf("Invalid type %T for specifier %%B\n", kind);
+            }
+
+        case:
+            fmt.eprintf("Invalid format specifier '%%%c'\n", fmt_str[fidx]);
+            return false;
+        }
         fidx += 1;
         aidx += 1;
         if !ok do return false;
