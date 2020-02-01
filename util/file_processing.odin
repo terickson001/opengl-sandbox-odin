@@ -107,7 +107,7 @@ read_filepath :: proc(str: ^string, ret: ^string) -> bool
 
     char_is_path :: proc(c: u8) -> bool
     {
-        return char_is_ident(c) || os.is_path_separator(rune(c));
+        return char_is_ident(c) || os.is_path_separator(rune(c)) || c == '.';
     }
     if !char_is_path(str[idx]) do
         return false;
@@ -125,7 +125,7 @@ read_filepath :: proc(str: ^string, ret: ^string) -> bool
     return true;
 }
 
-read_whitespace :: proc(str: ^string, newline := true) -> bool
+read_whitespace :: proc(str: ^string, newline := false) -> bool
 {
     idx := 0;
     
@@ -323,7 +323,7 @@ read_any :: proc(str: ^string, arg: any, verb: u8 = 'v') -> bool
         case 'B':
         true_str: string;
         false_str: string;
-        if !read_fmt(str, "{%w%s%w,%w%s%w}", &true_str, &false_str)
+        if !read_fmt(str, "{%_%s%_,%_%s%_}", &true_str, &false_str)
         {
             fmt.eprintf("Format specifier %B must be followed by boolean specifiers: {true,false}\n");
             break;
@@ -386,8 +386,8 @@ read_fmt :: proc(str: ^string, fmt_str: string, args: ..any) -> bool
             }
         }
 
-        if aidx >= len(args) do
-            return false;
+        /* if aidx >= len(args) do */
+        /*     return false; */
 
         str^ = str[sidx:];
         sidx = 0;
@@ -404,21 +404,24 @@ read_fmt :: proc(str: ^string, fmt_str: string, args: ..any) -> bool
         case 'q': fallthrough;
         case 's': fallthrough;
         case 'F': fallthrough;
-        case '_': fallthrough;
-        case '>': fallthrough;
         case 'b': fallthrough;
         case 'v': ok = read_any(str, args[aidx], fmt_str[fidx]);
+
+        case '_': fallthrough;
+        case '>':
+            ok = read_any(str, nil, fmt_str[fidx]);
+            aidx -= 1;
 
         case 'B':
             fmt_copy := fmt_str[fidx+1:];
             true_str: string;
             false_str: string;
-            if !read_fmt(&fmt_copy, "{%w%s%w,%w%s%w}", &true_str, &false_str)
+            if !read_fmt(&fmt_copy, "{%_%s%_,%_%s%_}", &true_str, &false_str)
             {
                 fmt.eprintf("Format specifier %B must be followed by boolean specifiers: {true,false}\n");
                 break;
             }
-            
+            fmt.printf("TRUE: %s; FALSE: %s\n\n", true_str, false_str);
             fidx += len(fmt_str) - len(fmt_copy)-1;
             switch kind in arg
             {

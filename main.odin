@@ -42,61 +42,66 @@ main :: proc()
     gl.ClearColor(0.55, 0.2, 0.3, 0.0);
     // gl.ClearColor(1, 1, 1, 1);
 
-    vertices := [?]f32{
-        -1.0, -1.0,  0.0,
-         1.0, -1.0,  0.0,
-        -1.0,  1.0,  0.0,
+    /* vertices := [?]f32{ */
+    /*     -1.0, -1.0,  0.0, */
+    /*      1.0, -1.0,  0.0, */
+    /*     -1.0,  1.0,  0.0, */
         
-         1.0,  1.0,  0.0,
-        -1.0,  1.0,  0.0,
-         1.0, -1.0,  0.0,
-    };
+    /*      1.0,  1.0,  0.0, */
+    /*     -1.0,  1.0,  0.0, */
+    /*      1.0, -1.0,  0.0, */
+    /* }; */
 
-    uvs := [?]f32{
-        0, 0,
-        1, 0,
-        0, 1,
+    /* uvs := [?]f32{ */
+    /*     0, 0, */
+    /*     1, 0, */
+    /*     0, 1, */
         
-        1, 1,
-        0, 1,
-        1, 0,
-    };
+    /*     1, 1, */
+    /*     0, 1, */
+    /*     1, 0, */
+    /* }; */
     
-    vbuff: u32;
-    gl.GenBuffers(1, &vbuff);
-    gl.BindBuffer(gl.ARRAY_BUFFER, vbuff);
-    gl.BufferData(gl.ARRAY_BUFFER, len(vertices)*size_of(f32), &vertices[0], gl.STATIC_DRAW);
+    /* vbuff: u32; */
+    /* gl.GenBuffers(1, &vbuff); */
+    /* gl.BindBuffer(gl.ARRAY_BUFFER, vbuff); */
+    /* gl.BufferData(gl.ARRAY_BUFFER, len(vertices)*size_of(f32), &vertices[0], gl.STATIC_DRAW); */
 
-    uvbuff: u32;
-    gl.GenBuffers(1, &uvbuff);
-    gl.BindBuffer(gl.ARRAY_BUFFER, uvbuff);
-    gl.BufferData(gl.ARRAY_BUFFER, len(uvs)*size_of(f32), &uvs[0], gl.STATIC_DRAW);
+    /* uvbuff: u32; */
+    /* gl.GenBuffers(1, &uvbuff); */
+    /* gl.BindBuffer(gl.ARRAY_BUFFER, uvbuff); */
+    /* gl.BufferData(gl.ARRAY_BUFFER, len(uvs)*size_of(f32), &uvs[0], gl.STATIC_DRAW); */
 
-    texture_id := render.image_texture("./res/grass.png");
+    // texture_id := render.image_texture("./res/grass.png");
+    adv := render.load_sprite("./res/adventurer.sprite");
+    render.sprite_set_anim(&adv, "idle");
     for glfw.get_key(window.handle, glfw.KEY_ESCAPE) != glfw.PRESS &&
         !glfw.window_should_close(window.handle)
     {
         gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-        gl.UseProgram(s.id);
+        render.draw_sprite(s, &adv, {1024/2, 768/2}, {1, 1});
+        /* gl.UseProgram(s.id); */
         
-        gl.Uniform2i(s.uniforms.resolution, i32(window.width), i32(window.height));
+        /* gl.Uniform2i(s.uniforms.resolution, i32(window.width), i32(window.height)); */
 
-        gl.ActiveTexture(gl.TEXTURE0);
-        gl.BindTexture(gl.TEXTURE_2D, texture_id);
-        gl.Uniform1i(s.uniforms.diffuse_sampler, 0);
+        /* gl.ActiveTexture(gl.TEXTURE0); */
+        /* gl.BindTexture(gl.TEXTURE_2D, texture_id); */
+        /* gl.Uniform1i(s.uniforms.diffuse_sampler, 0); */
         
-        gl.EnableVertexAttribArray(0);
-        gl.BindBuffer(gl.ARRAY_BUFFER, vbuff);
-        gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 0, nil);
+        /* gl.EnableVertexAttribArray(0); */
+        /* gl.BindBuffer(gl.ARRAY_BUFFER, vbuff); */
+        /* gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 0, nil); */
 
-        gl.EnableVertexAttribArray(1);
-        gl.BindBuffer(gl.ARRAY_BUFFER, uvbuff);
-        gl.VertexAttribPointer(1, 2, gl.FLOAT, gl.FALSE, 0, nil);
+        /* gl.EnableVertexAttribArray(1); */
+        /* gl.BindBuffer(gl.ARRAY_BUFFER, uvbuff); */
+        /* gl.VertexAttribPointer(1, 2, gl.FLOAT, gl.FALSE, 0, nil); */
 
-        gl.DrawArrays(gl.TRIANGLES, 0, 6);
-        gl.DisableVertexAttribArray(0);
-        gl.DisableVertexAttribArray(1);
+        /* gl.DrawArrays(gl.TRIANGLES, 0, 6); */
+        /* gl.DisableVertexAttribArray(0); */
+        /* gl.DisableVertexAttribArray(1); */
+
+        
         
         glfw.swap_buffers(window.handle);
         glfw.poll_events();

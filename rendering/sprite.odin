@@ -49,7 +49,7 @@ load_sprite :: proc(filepath: string) -> (s: Sprite)
     atlas_file: string;
     if !util.read_fmt(&file, "%F%>", &atlas_file)
     {
-        fmt.eprintf("Failed to load sprite '%s'\n", filepath);
+        fmt.eprintf("Failed to load sprite '%s'(%s)\n", filepath, atlas_file);
         os.exit(1);
     }
     s.atlas = load_texture(atlas_file, string{}, string{});
