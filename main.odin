@@ -49,15 +49,27 @@ main :: proc()
     current_time: f64;
     dt: f32;
 
-    time_step := 1.0/144.0;
+    time_step := f32(1.0/144.0);
     
     nb_frames := 0;
     accum_time := 0.0;
-    
+
+    updated: bool;
     for glfw.get_key(window.handle, glfw.KEY_ESCAPE) != glfw.PRESS &&
         !glfw.window_should_close(window.handle)
     {
+        updated = false;
         for dt > time_step
+        {
+            updated = true;
+            
+            render.update_entity_2d(&adventurer);
+            
+            dt -= time_step;
+        }
+
+        // Only draw if content has been updated
+        if updated
         {
             gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
@@ -69,8 +81,6 @@ main :: proc()
             render.draw_text(text_shader, font, test_str, {f32(window.width)-w, f32(window.height-24)}, 24);
             gl.Disable(gl.BLEND);
             glfw.swap_buffers(window.handle);
-            
-            dt -= time_step;
         }
         
         current_time = glfw.get_time();

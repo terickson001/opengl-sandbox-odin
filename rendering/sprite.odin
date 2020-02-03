@@ -127,7 +127,7 @@ sprite_set_anim :: proc(using s: ^Sprite, name: string)
     s.key_index = 0;
 }
 
-draw_sprite :: proc(shader: Shader, s: ^Sprite, pos, scale: [2]f32)
+update_sprite :: proc(s: ^Sprite)
 {
     if s.anim_frame == u16(s.curr_anim.length)
     {
@@ -143,7 +143,12 @@ draw_sprite :: proc(shader: Shader, s: ^Sprite, pos, scale: [2]f32)
     if s.anim_frame > u16(s.curr_anim.keys[s.key_index].active_frame) &&
         s.anim_frame == u16(s.curr_anim.keys[s.key_index+1].active_frame) do
             s.key_index += 1;
+        
+    s.anim_frame += 1;
+}
 
+draw_sprite :: proc(shader: Shader, s: ^Sprite, pos, scale: [2]f32)
+{
     key := s.curr_anim.keys[s.key_index];
     vertices : [6][2]f32;
     uvs: [6][2]f32;
@@ -199,8 +204,4 @@ draw_sprite :: proc(shader: Shader, s: ^Sprite, pos, scale: [2]f32)
 
     gl.DisableVertexAttribArray(0);
     gl.DisableVertexAttribArray(1);
-
-    /* fmt.printf("ANIM_FRAME: %d; KEY_INDEX: %d\n", s.anim_frame, s.key_index); */
-    /* fmt.printf("CURR_ANIM: %q; PREV_ANIM: %q\n", s.curr_anim.name, s.prev_anim.name); */
-    s.anim_frame += 1;
 }

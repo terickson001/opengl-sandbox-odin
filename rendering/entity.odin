@@ -79,3 +79,8 @@ draw_entity_2d :: proc(s: Shader, using e: ^Entity_2D)
 {
     draw_sprite(s, sprite, pos, scale);
 }
+
+update_entity_2d :: proc(using e: ^Entity_2D)
+{
+    update_sprite(sprite);
+}
