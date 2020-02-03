@@ -79,25 +79,25 @@ load_obj :: proc(filepath : string) -> Mesh
         if header == "v"
         {
             vert := [3]f32{};
-            util.read_fmt(&file, "%f %f %f\n", &vert.x, &vert.y, &vert.z);
+            util.read_fmt(&file, "%f %f %f%>", &vert.x, &vert.y, &vert.z);
             append(&temp_verts, vert);
         }
         else if header == "vn"
         {
             norm := [3]f32{};
-            util.read_fmt(&file, "%f %f %f\n", &norm.x, &norm.y, &norm.z);
+            util.read_fmt(&file, "%f %f %f%>", &norm.x, &norm.y, &norm.z);
             append(&temp_norms, norm);
         }
         else if header == "vt"
         {
             uv := [2]f32{};
-            util.read_fmt(&file, "%f %f\n", &uv.x, &uv.y);
+            util.read_fmt(&file, "%f %f%>", &uv.x, &uv.y);
             append(&temp_uvs, uv);
         }
         else if header == "f"
         {
             vi, ni, uvi : [3]u16;
-            util.read_fmt(&file, "%d/%d/%d %d/%d/%d %d/%d/%d\n",
+            util.read_fmt(&file, "%d/%d/%d %d/%d/%d %d/%d/%d%>",
                      &vi[0], &uvi[0], &ni[0],
                      &vi[1], &uvi[1], &ni[1],
                      &vi[2], &uvi[2], &ni[2]

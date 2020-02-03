@@ -14,6 +14,7 @@ Animation_Key :: struct
 
 Animation :: struct
 {
+    name   : string,
     repeat : bool,
     length : u8,
     keys   : [16]Animation_Key,
@@ -44,7 +45,8 @@ load_sprite :: proc(filepath: string) -> (s: Sprite)
     }
         
     s.animations = make(map[string]^Animation);
-    gl.GenBuffers(2, &s.vbuff);
+    gl.GenBuffers(1, &s.vbuff);
+    gl.GenBuffers(1, &s.uvbuff);
 
     atlas_file: string;
     if !util.read_fmt(&file, "%F%>", &atlas_file)
@@ -91,7 +93,8 @@ load_sprite :: proc(filepath: string) -> (s: Sprite)
             }
             idx += 1;
         }
-        sprite_add_anim(&s, anim_name, anim);
+        anim.name = anim_name;
+        sprite_add_anim(&s, anim);
     }
 
     return s;
@@ -105,9 +108,9 @@ make_sprite :: proc() -> (s: Sprite)
     return s;
 }
 
-sprite_add_anim :: proc(using s: ^Sprite, name: string, anim: ^Animation)
+sprite_add_anim :: proc(using s: ^Sprite, anim: ^Animation)
 {
-    s.animations[name] = anim;
+    s.animations[anim.name] = anim;
 }
 
 sprite_set_anim :: proc(using s: ^Sprite, name: string)
@@ -142,7 +145,8 @@ draw_sprite :: proc(shader: Shader, s: ^Sprite, pos, scale: [2]f32)
             s.key_index += 1;
 
     key := s.curr_anim.keys[s.key_index];
-    vertices, uvs: [6][2]f32;
+    vertices : [6][2]f32;
+    uvs: [6][2]f32;
     
     scaled_dim := key.dim * scale;
 
@@ -196,7 +200,7 @@ draw_sprite :: proc(shader: Shader, s: ^Sprite, pos, scale: [2]f32)
     gl.DisableVertexAttribArray(0);
     gl.DisableVertexAttribArray(1);
 
-    /* printf("ANIM_FRAME: %d; KEY_INDEX: %d\n", s->anim_frame, s->key_index); */
-    /* printf("CURR_ANIM: %p; PREV_ANIM: %p\n", s->curr_anim, s->prev_anim); */
+    /* fmt.printf("ANIM_FRAME: %d; KEY_INDEX: %d\n", s.anim_frame, s.key_index); */
+    /* fmt.printf("CURR_ANIM: %q; PREV_ANIM: %q\n", s.curr_anim.name, s.prev_anim.name); */
     s.anim_frame += 1;
 }

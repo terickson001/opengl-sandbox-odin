@@ -66,7 +66,7 @@ draw_entity :: proc(s: Shader, using e: Entity)
 }
 
 
-make_entity_2d :: proc(s: ^Sprite, pos, scale: f32) -> (e: Entity_2D)
+make_entity_2d :: proc(s: ^Sprite, pos, scale: [2]f32) -> (e: Entity_2D)
 {
     e.sprite = s;
     e.pos = pos;
@@ -75,7 +75,7 @@ make_entity_2d :: proc(s: ^Sprite, pos, scale: f32) -> (e: Entity_2D)
     return e;
 }
 
-draw_entity_2d :: proc(s: Shader, using e: Entity_2D)
+draw_entity_2d :: proc(s: Shader, using e: ^Entity_2D)
 {
     draw_sprite(s, sprite, pos, scale);
 }

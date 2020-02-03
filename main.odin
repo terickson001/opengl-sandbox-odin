@@ -13,7 +13,7 @@ main :: proc()
     init_glfw();
     defer glfw.terminate();
     
-    window := render.init_window(768, 768, "[$float$] Hello, World!");
+    window := render.init_window(1024, 768, "[$float$] Hello, World!");
     glfw.make_context_current(window.handle);
 
     init_gl();
@@ -33,77 +33,50 @@ main :: proc()
     gl.GenVertexArrays(1, &vao);
     gl.BindVertexArray(vao);
 
-    // s := init_shader("./shader/vertex.vs", "./shader/fragment.fs");
     s := render.init_shader("./shader/vert2d.vs", "./shader/frag2d.fs");
-    /* m := make_mesh("./res/suzanne.obj", true, true); */
-    /* create_mesh_vbos(&m); */
-
-    gl.ClearColor(0.0, 0.3, 0.4, 0.0);
+    text_shader := render.init_shader("./shader/text.vs", "./shader/text.fs");
+    // gl.ClearColor(0.0, 0.3, 0.4, 0.0);
     gl.ClearColor(0.55, 0.2, 0.3, 0.0);
-    // gl.ClearColor(1, 1, 1, 1);
 
-    /* vertices := [?]f32{ */
-    /*     -1.0, -1.0,  0.0, */
-    /*      1.0, -1.0,  0.0, */
-    /*     -1.0,  1.0,  0.0, */
-        
-    /*      1.0,  1.0,  0.0, */
-    /*     -1.0,  1.0,  0.0, */
-    /*      1.0, -1.0,  0.0, */
-    /* }; */
+    sprite := render.load_sprite("./res/adventurer.sprite");
+    render.sprite_set_anim(&sprite, "running");
+    adventurer := render.make_entity_2d(&sprite, [2]f32{512-160, 384-160}, [2]f32{10,10});
 
-    /* uvs := [?]f32{ */
-    /*     0, 0, */
-    /*     1, 0, */
-    /*     0, 1, */
-        
-    /*     1, 1, */
-    /*     0, 1, */
-    /*     1, 0, */
-    /* }; */
+    font := render.load_font("./res/font/OpenSans-Regular");
+    test_str := "Hello, World!";
     
-    /* vbuff: u32; */
-    /* gl.GenBuffers(1, &vbuff); */
-    /* gl.BindBuffer(gl.ARRAY_BUFFER, vbuff); */
-    /* gl.BufferData(gl.ARRAY_BUFFER, len(vertices)*size_of(f32), &vertices[0], gl.STATIC_DRAW); */
+    last_time := glfw.get_time();
+    current_time: f64;
+    dt: f32;
 
-    /* uvbuff: u32; */
-    /* gl.GenBuffers(1, &uvbuff); */
-    /* gl.BindBuffer(gl.ARRAY_BUFFER, uvbuff); */
-    /* gl.BufferData(gl.ARRAY_BUFFER, len(uvs)*size_of(f32), &uvs[0], gl.STATIC_DRAW); */
-
-    // texture_id := render.image_texture("./res/grass.png");
-    adv := render.load_sprite("./res/adventurer.sprite");
-    render.sprite_set_anim(&adv, "idle");
+    time_step := 1.0/144.0;
+    
+    nb_frames := 0;
+    accum_time := 0.0;
+    
     for glfw.get_key(window.handle, glfw.KEY_ESCAPE) != glfw.PRESS &&
         !glfw.window_should_close(window.handle)
     {
-        gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        for dt > time_step
+        {
+            gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-        render.draw_sprite(s, &adv, {1024/2, 768/2}, {1, 1});
-        /* gl.UseProgram(s.id); */
+            render.draw_entity_2d(s, &adventurer);
+
+            gl.Enable(gl.BLEND);
+            gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+            w := render.get_text_width(font, test_str, 24);
+            render.draw_text(text_shader, font, test_str, {f32(window.width)-w, f32(window.height-24)}, 24);
+            gl.Disable(gl.BLEND);
+            glfw.swap_buffers(window.handle);
+            
+            dt -= time_step;
+        }
         
-        /* gl.Uniform2i(s.uniforms.resolution, i32(window.width), i32(window.height)); */
-
-        /* gl.ActiveTexture(gl.TEXTURE0); */
-        /* gl.BindTexture(gl.TEXTURE_2D, texture_id); */
-        /* gl.Uniform1i(s.uniforms.diffuse_sampler, 0); */
+        current_time = glfw.get_time();
+        dt += f32(current_time - last_time);
+        last_time = current_time;
         
-        /* gl.EnableVertexAttribArray(0); */
-        /* gl.BindBuffer(gl.ARRAY_BUFFER, vbuff); */
-        /* gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 0, nil); */
-
-        /* gl.EnableVertexAttribArray(1); */
-        /* gl.BindBuffer(gl.ARRAY_BUFFER, uvbuff); */
-        /* gl.VertexAttribPointer(1, 2, gl.FLOAT, gl.FALSE, 0, nil); */
-
-        /* gl.DrawArrays(gl.TRIANGLES, 0, 6); */
-        /* gl.DisableVertexAttribArray(0); */
-        /* gl.DisableVertexAttribArray(1); */
-
-        
-        
-        glfw.swap_buffers(window.handle);
         glfw.poll_events();
     }
 }

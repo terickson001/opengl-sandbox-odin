@@ -38,8 +38,8 @@ color_texture :: proc(color: [4]f32, normalize: bool) -> Texture
     gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.BindTexture(gl.TEXTURE_2D, 0);
 
-    t.normal   = image_texture("./res/normal_default.png");
-    t.specular = image_texture("./res/specular_default.png");
+    t.normal, _   = image_texture("./res/normal_default.png");
+    t.specular, _ = image_texture("./res/specular_default.png");
 
     t.info.width  = 1;
     t.info.height = 1;
@@ -76,8 +76,8 @@ texture_pallette :: proc(colors: [][4]f32, normalize: b32) -> Texture
     gl.GenerateMipmap(gl.TEXTURE_2D);
     gl.BindTexture(gl.TEXTURE_2D, 0);
     
-    t.normal   = image_texture("./res/normal_default.png");
-    t.specular = image_texture("./res/specular_default.png");
+    t.normal, _   = image_texture("./res/normal_default.png");
+    t.specular, _ = image_texture("./res/specular_default.png");
 
     t.info.width  = u32(size);
     t.info.height = u32(size);
@@ -93,7 +93,7 @@ texture_pallete_index :: proc(pallete: Texture, i: int) -> [2]f32
     return uv;
 }
 
-image_texture :: proc(filepath: string) -> u32
+image_texture :: proc(filepath: string) -> (u32, Texture_Info)
 {
     img := image.load(filepath);
 
@@ -134,10 +134,6 @@ image_texture :: proc(filepath: string) -> u32
     }
 
     type := u32(img.depth == 16 ? gl.UNSIGNED_SHORT : gl.UNSIGNED_BYTE);
-
-    /* type := u32(gl.HALF_FLOAT); */
-    /* format := u32(gl.BGR); */
-    /* iformat := u32(gl.RGB16F); */
     
     texture_id: u32;
     gl.GenTextures(1, &texture_id);
@@ -155,20 +151,20 @@ image_texture :: proc(filepath: string) -> u32
     gl.GenerateMipmap(gl.TEXTURE_2D);
 
     gl.BindTexture(gl.TEXTURE_2D, 0);
-    
-    return texture_id;
+
+    return texture_id, {img.width, img.height};
 }
 
 load_texture :: proc(diff, norm, spec: string) -> Texture
 {
     t := Texture{};
 
-    t.diffuse = image_texture(diff);
-    if norm != "" do t.normal = image_texture(norm);
-    else          do t.normal = image_texture("./res/normal_default.png");
+    t.diffuse, t.info = image_texture(diff);
+    if norm != "" do t.normal, _ = image_texture(norm);
+    else          do t.normal, _ = image_texture("./res/normal_default.png");
 
-    if spec != "" do t.specular = image_texture(spec);
-    else          do t.specular = image_texture("./res/specular_default.png");
+    if spec != "" do t.specular, _ = image_texture(spec);
+    else          do t.specular, _ = image_texture("./res/specular_default.png");
 
     return t;
 }
