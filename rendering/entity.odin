@@ -80,7 +80,7 @@ draw_entity_2d :: proc(s: Shader, using e: ^Entity_2D)
     draw_sprite(s, sprite, pos, scale);
 }
 
-update_entity_2d :: proc(using e: ^Entity_2D)
+update_entity_2d :: proc(using e: ^Entity_2D, dt: f32)
 {
-    update_sprite(sprite);
+    update_sprite(sprite, dt);
 }

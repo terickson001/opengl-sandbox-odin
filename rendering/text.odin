@@ -151,6 +151,12 @@ draw_text :: proc(s: Shader, font: Font, text: string, pos: [2]f32, size: int)
 
     vertices := make([dynamic][2]f32);
     uvs      := make([dynamic][3]f32);
+
+    defer
+    {
+        delete(vertices);
+        delete(uvs);
+    }
     
     scale := f32(size) / (font.info.ascent - font.info.descent);
     for c in text
@@ -215,6 +221,8 @@ draw_text :: proc(s: Shader, font: Font, text: string, pos: [2]f32, size: int)
     gl.BindBuffer(gl.ARRAY_BUFFER, font.uvbuff);
     gl.VertexAttribPointer(1, 3, gl.FLOAT, gl.FALSE, 0, nil);
 
+    gl.Enable(gl.BLEND);
+    gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     gl.DrawArrays(gl.TRIANGLES, 0, i32(len(vertices)));
 
     gl.DisableVertexAttribArray(0);

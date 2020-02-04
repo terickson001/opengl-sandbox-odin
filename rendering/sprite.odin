@@ -14,16 +14,19 @@ Animation_Key :: struct
 
 Animation :: struct
 {
-    name   : string,
-    repeat : bool,
-    length : u8,
-    keys   : [16]Animation_Key,
+    name      : string,
+    repeat    : bool,
+    length    : u8,
+    key_count : u8,
+    keys      : [16]Animation_Key,
 }
 
 Sprite :: struct
 {
     atlas      : Texture,
     dim        : [2]f32,
+    frame_time : f32,
+    accum_time : f32,
     animations : map[string]^Animation,
     anim_frame : u16,
     curr_anim  : ^Animation,
@@ -64,6 +67,12 @@ load_sprite :: proc(filepath: string) -> (s: Sprite)
         fmt.eprintf("%s: Sprite must declare dimensions after texture name\n", filepath);
         os.exit(1);
     }
+    if !util.read_fmt(&file, "%f%>", &s.frame_time)
+    {
+        fmt.eprintf("%s: Sprite must declare frame_time after dimensions\n", filepath);
+        os.exit(1);
+    }
+    s.frame_time = 1.0 / s.frame_time;
 
     for util.read_fmt(&file, "%s%>", &anim_name)
     {
@@ -93,6 +102,7 @@ load_sprite :: proc(filepath: string) -> (s: Sprite)
             }
             idx += 1;
         }
+        anim.key_count = u8(idx);
         anim.name = anim_name;
         sprite_add_anim(&s, anim);
     }
@@ -127,11 +137,16 @@ sprite_set_anim :: proc(using s: ^Sprite, name: string)
     s.key_index = 0;
 }
 
-update_sprite :: proc(s: ^Sprite)
+update_sprite :: proc(s: ^Sprite, dt: f32)
 {
-    if s.anim_frame == u16(s.curr_anim.length)
+    s.accum_time += dt;
+    advance := u16(s.accum_time / s.frame_time);
+    s.anim_frame += advance;
+    s.accum_time -= f32(advance) * s.frame_time;
+
+    if s.anim_frame >= u16(s.curr_anim.length)
     {
-        s.anim_frame = 0;
+        s.anim_frame -= u16(s.curr_anim.length);
         s.key_index = 0;
         if !s.curr_anim.repeat
         {
@@ -140,11 +155,15 @@ update_sprite :: proc(s: ^Sprite)
         }
     }
 
-    if s.anim_frame > u16(s.curr_anim.keys[s.key_index].active_frame) &&
-        s.anim_frame == u16(s.curr_anim.keys[s.key_index+1].active_frame) do
+    curr_key := &s.curr_anim.keys[s.key_index];
+    next_key: ^Animation_Key;
+    if s.key_index+1 < s.curr_anim.key_count do
+        next_key = &s.curr_anim.keys[s.key_index+1];
+
+    if s.anim_frame > u16(curr_key.active_frame) && next_key != nil &&
+        s.anim_frame >= u16(next_key.active_frame) do
             s.key_index += 1;
         
-    s.anim_frame += 1;
 }
 
 draw_sprite :: proc(shader: Shader, s: ^Sprite, pos, scale: [2]f32)
@@ -199,7 +218,7 @@ draw_sprite :: proc(shader: Shader, s: ^Sprite, pos, scale: [2]f32)
     gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
     gl.DrawArrays(gl.TRIANGLES, 0, 6);
-
+    
     gl.Disable(gl.BLEND);
 
     gl.DisableVertexAttribArray(0);

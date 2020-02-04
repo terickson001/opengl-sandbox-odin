@@ -7,6 +7,7 @@ import "shared:gl"
 import "shared:glfw"
 
 import render "rendering"
+import "gui"
 
 main :: proc()
 {
@@ -35,8 +36,9 @@ main :: proc()
 
     s := render.init_shader("./shader/vert2d.vs", "./shader/frag2d.fs");
     text_shader := render.init_shader("./shader/text.vs", "./shader/text.fs");
-    // gl.ClearColor(0.0, 0.3, 0.4, 0.0);
-    gl.ClearColor(0.55, 0.2, 0.3, 0.0);
+    
+    gl.ClearColor(0.0, 0.3, 0.4, 0.0);
+    // gl.ClearColor(0.55, 0.2, 0.3, 0.0);
 
     sprite := render.load_sprite("./res/adventurer.sprite");
     render.sprite_set_anim(&sprite, "running");
@@ -51,9 +53,11 @@ main :: proc()
 
     time_step := f32(1.0/144.0);
     
-    nb_frames := 0;
+    nb_frames  := 0;
     accum_time := 0.0;
-
+    fps_buf: [8]byte;
+    fps_str: string;
+    
     updated: bool;
     for glfw.get_key(window.handle, glfw.KEY_ESCAPE) != glfw.PRESS &&
         !glfw.window_should_close(window.handle)
@@ -62,8 +66,17 @@ main :: proc()
         for dt > time_step
         {
             updated = true;
+
+            nb_frames += 1;
+            accum_time += f64(dt);
+            if accum_time >= 1.0
+            {
+                fps_str = fmt.bprintf(fps_buf[:], "%d", nb_frames);
+                nb_frames = 0;
+                accum_time -= 1.0;
+            }
             
-            render.update_entity_2d(&adventurer);
+            render.update_entity_2d(&adventurer, time_step);
             
             dt -= time_step;
         }
@@ -74,12 +87,12 @@ main :: proc()
             gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
             render.draw_entity_2d(s, &adventurer);
-
-            gl.Enable(gl.BLEND);
-            gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-            w := render.get_text_width(font, test_str, 24);
-            render.draw_text(text_shader, font, test_str, {f32(window.width)-w, f32(window.height-24)}, 24);
-            gl.Disable(gl.BLEND);
+           
+            fps_w := render.get_text_width(font, string(fps_str[:]), 24);
+            render.draw_text(text_shader, font, string(fps_str[:]),
+                             {f32(window.width)-fps_w, f32(window.height-24)},
+                             24);
+            
             glfw.swap_buffers(window.handle);
         }
         
