@@ -2,9 +2,11 @@ package gui
 
 import "core:fmt"
 import "core:hash"
+import "core:hash"
 import "core:mem"
 import "core:sort"
 import "core:strings"
+import "core:intrinsics"
 
 MAX_ROW_ITEMS :: 16;
 
@@ -175,6 +177,133 @@ Display :: struct
     height : f32,
 }
 
+
+Key_Code :: enum u16
+{
+    Unknown       = -1,
+    Space         = 32,
+    Apostrophe    = 39,
+    Comma         = 44,
+    Minus         = 45,
+    Period        = 46,
+    Slash         = 47,
+    Num_0         = 48,
+    Num_1         = 49,
+    Num_2         = 50,
+    Num_3         = 51,
+    Num_4         = 52,
+    Num_5         = 53,
+    Num_6         = 54,
+    Num_7         = 55,
+    Num_8         = 56,
+    Num_9         = 57,
+    Semicolon     = 59,
+    Equal         = 61,
+    A             = 65,
+    B             = 66,
+    C             = 67,
+    D             = 68,
+    E             = 69,
+    F             = 70,
+    G             = 71,
+    H             = 72,
+    I             = 73,
+    J             = 74,
+    K             = 75,
+    L             = 76,
+    M             = 77,
+    N             = 78,
+    O             = 79,
+    P             = 80,
+    Q             = 81,
+    R             = 82,
+    S             = 83,
+    T             = 84,
+    U             = 85,
+    V             = 86,
+    W             = 87,
+    X             = 88,
+    Y             = 89,
+    Z             = 90,
+    Left_Bracket  = 91,
+    Backslash     = 92,
+    Right_Bracket = 93,
+    Grave_Accent  = 96,
+    World_1       = 161,
+    World_2       = 162,
+    Escape        = 256,
+    Enter         = 257,
+    Tab           = 258,
+    Backspace     = 259,
+    Insert        = 260,
+    Delete        = 261,
+    Right         = 262,
+    Left          = 263,
+    Down          = 264,
+    Up            = 265,
+    Page_Up       = 266,
+    Page_Down     = 267,
+    Home          = 268,
+    End           = 269,
+    Caps_Lock     = 280,
+    Scroll_Lock   = 281,
+    Num_Lock      = 282,
+    Print_Screen  = 283,
+    Pause         = 284,
+    F1            = 290,
+    F2            = 291,
+    F3            = 292,
+    F4            = 293,
+    F5            = 294,
+    F6            = 295,
+    F7            = 296,
+    F8            = 297,
+    F9            = 298,
+    F10           = 299,
+    F11           = 300,
+    F12           = 301,
+    F13           = 302,
+    F14           = 303,
+    F15           = 304,
+    F16           = 305,
+    F17           = 306,
+    F18           = 307,
+    F19           = 308,
+    F20           = 309,
+    F21           = 310,
+    F22           = 311,
+    F23           = 312,
+    F24           = 313,
+    F25           = 314,
+    Kp_0          = 320,
+    Kp_1          = 321,
+    Kp_2          = 322,
+    Kp_3          = 323,
+    Kp_4          = 324,
+    Kp_5          = 325,
+    Kp_6          = 326,
+    Kp_7          = 327,
+    Kp_8          = 328,
+    Kp_9          = 329,
+    Kp_Decimal    = 330,
+    Kp_Divide     = 331,
+    Kp_Multiply   = 332,
+    Kp_Subtract   = 333,
+    Kp_Add        = 334,
+    Kp_Enter      = 335,
+    Kp_Equal      = 336,
+    Left_Shift    = 340,
+    Left_Control  = 341,
+    Left_Alt      = 342,
+    Left_Super    = 343,
+    Right_Shift   = 344,
+    Right_Control = 345,
+    Right_Alt     = 346,
+    Right_Super   = 347,
+    Menu          = 348,
+    Last          = Key_Code.Menu,
+}
+
 MAX_KEY_COUNT :: 512;
 Control :: struct
 {
@@ -184,6 +313,7 @@ Control :: struct
     keys_down  : [MAX_KEY_COUNT]bool,
     key_times  : [MAX_KEY_COUNT]f32,
     text_input : [128]byte,
+    char_count : int
 }
 
 Context :: struct
@@ -243,10 +373,10 @@ mouse_pressed  :: proc(using ctx: ^Context, b: int) -> bool { return  mouse[b] &
 mouse_up       :: proc(using ctx: ^Context, b: int) -> bool { return !mouse[b];                   }
 mouse_released :: proc(using ctx: ^Context, b: int) -> bool { return !mouse[b] &&  last_mouse[b]; }
 
-key_down       :: proc(using ctx: ^Context, k: int) -> bool { return  keys_down[k];                       }
-key_pressed    :: proc(using ctx: ^Context, k: int) -> bool { return  keys_down[k] && !last_keys_down[k]; }
-key_up         :: proc(using ctx: ^Context, k: int) -> bool { return !keys_down[k];                       }
-key_released   :: proc(using ctx: ^Context, k: int) -> bool { return !keys_down[k] &&  last_keys_down[k]; }
+key_down     :: proc(using ctx: ^Context, k: Key_Code) -> bool { return  keys_down[k];                       }
+key_pressed  :: proc(using ctx: ^Context, k: Key_Code) -> bool { return  keys_down[k] && !last_keys_down[k]; }
+key_up       :: proc(using ctx: ^Context, k: Key_Code) -> bool { return !keys_down[k];                       }
+key_released :: proc(using ctx: ^Context, k: Key_Code) -> bool { return !keys_down[k] &&  last_keys_down[k]; }
 
 push_container :: proc(using ctx: ^Context, container: Rect)
 {
@@ -455,23 +585,22 @@ update_focus :: proc(using ctx: ^Context, rect: Rect, id: u64, opt: Options)
     }
 }
 
-add_draw :: proc(using ctx: ^Context, kind: Draw_Kind) -> ^Draw
+add_draw :: proc(using ctx: ^Context) -> ^Draw
 {
     draw := Draw{};
-    draw.kind = kind;
     append(&draws, draw);
-    return draws[len(draws)-1];
+    return &draws[len(draws)-1];
 }
 
 draw_border :: proc(using ctx: ^Context, rect: Rect, id: u64)
 {
-    bs := style.border_size;
+    bs := f32(style.border_size);
     c  := Color_ID.Border;
     
-    draw_rect(ctx, {rect.x,           rect.y,           bs,            rect.h}, id, c, 0); // Left
-    draw_rect(ctx, {rect.x+rect.w-bs, rect.y,           bs,            rect.h}, id, c, 0); // Right
-    draw_rect(ctx, {rect.x+bs,        rect.y,           rect.w-(2*bs), bs},     id, c, 0); // Top
-    draw_rect(ctx, {rect.x+bs,        rect.y+rect.h-bs, rect.w-(2*bs), bs},     id, c, 0); // Bottom
+    draw_rect(ctx, {rect.x,           rect.y,           bs,            rect.h}, id, c, {}); // Left
+    draw_rect(ctx, {rect.x+rect.w-bs, rect.y,           bs,            rect.h}, id, c, {}); // Right
+    draw_rect(ctx, {rect.x+bs,        rect.y,           rect.w-(2*bs), bs},     id, c, {}); // Top
+    draw_rect(ctx, {rect.x+bs,        rect.y+rect.h-bs, rect.w-(2*bs), bs},     id, c, {}); // Bottom
 }
 
 draw_text :: proc(using ctx: ^Context, str: string, rect: Rect, color_id: Color_ID, opt: Options)
@@ -481,10 +610,10 @@ draw_text :: proc(using ctx: ^Context, str: string, rect: Rect, color_id: Color_
     pos.x = rect.x;
     pos.y = rect.y;
 
-    draw := add_draw(ctx, .Text);
+    draw := add_draw(ctx);
     draw.layer = layer;
-    draw.text  =
-        {
+    draw.variant  =
+        Draw_Text{
             pos = pos,
             size = rect.h,
             color_id = color_id,
@@ -495,17 +624,18 @@ draw_text :: proc(using ctx: ^Context, str: string, rect: Rect, color_id: Color_
 
 draw_rect :: proc(using ctx: ^Context, rect: Rect, id: u64, color_id: Color_ID, opt: Options)
 {
+    color_id := color_id;
     if color_id == .Button || color_id == .Base
     {
-        if      id == focus do color_id += 2;
-        else if id == hover do color_id += 1;
+        if      id == focus do color_id += Color_ID(2);
+        else if id == hover do color_id += Color_ID(1);
     }
     color := style.colors[color_id];
 
-    draw := add_draw(ctx, .Rect);
+    draw := add_draw(ctx);
     draw.layer = layer;
-    draw.rect  =
-        {
+    draw.variant  =
+        Draw_Rect{
             rect = rect,
             color = color,
             color_id = color_id,
@@ -529,10 +659,411 @@ next_draw :: proc(using ctx: ^Context, ret: ^Draw) -> bool
 label :: proc(using ctx: ^Context, str: string, opt: Options)
 {
     bounds := layout_rect(ctx);
-    text_rect = text_rect(ctx, str);
-    draw_text(ctx, str, align_rect(ctx, bounds, text_rect, opt), .Text, opt);
+    lbl_rect := text_rect(ctx, str);
+    draw_text(ctx, str, align_rect(ctx, bounds, lbl_rect, opt), .Text, opt);
 }
 
 button :: proc(using ctx: ^Context, lbl: string, icon: int, opt: Options) -> (res: Results)
 {
+    id := get_id(lbl, icon);
+
+    rect := layout_rect(ctx);
+
+    base_layer := layer;
+    was_focus  := id == focus;
+    update_focus(ctx, rect, id, {});
+
+    if was_focus && mouse_released(ctx, 0) && id == hover do
+        res |= {.Submit};
+
+    draw_rect(ctx, rect, id, .Button, {.Border});
+
+    layer = base_layer+1;
+    {
+        lbl_text := text_rect(ctx, lbl);
+        aligned  := align_rect(ctx, rect, lbl_text, opt);
+        draw_text(ctx, lbl, aligned, .Text, opt);
+    }
+    layer = base_layer;
+
+    return res;
+}
+
+slider :: proc(using ctx: ^Context, label: string, value: ^$T, fmt: string, upper, lower, step: T, opt: Options) -> (res: Results) where intrinsics.type_is_numeric(T)
+{
+    id = get_id(label, 0);
+
+    prev := value^;
+    rect := layout_rect(ctx);
+    update_focus(ctx, rect, id, opt);
+
+    tw := T(style.thumb_size);
+    if id == focus && mouse_down(ctx, 0)
+    {
+        value^ = lower + ((cursor.x-rect.x-(tw/2)) / (rect.w-tw) * (upper-lower));
+        if step > 0 do
+            value^ = math.trunc((value + step/2) / step) * step; 
+    }
+    else if id == hover && scroll.y > 0
+    {
+        add = scroll.y * (step > 0 ? step : T(1));
+        value^ += add;
+    }
+
+    value^ = clamp(value^, lower, upper);
+
+    if value^ != prev do
+        res |= {.Update};
+    
+    base_layer := layer;
+
+    // Draw Slider
+    draw_rect(ctx, rect, id, .Base, opt ~ {.Border});
+
+    // Draw Thumb
+    layer = base_layer+1;
+    {
+        percentage := (value^-lower)/(upper - lower);
+        thumb := Rect{rect.x + percentage * (rect.w-tw), rect.y, tw, rect.h};
+        draw_rect(ctx, thumb, id, .Button, opt);
+    }
+
+    // Draw value
+    layer = base_layer+2;
+    {
+        val_buf: [128]byte;
+        fmt.bprintf(val_buf, fmt, value^);
+        val_rect := text_rect(ctx, val_buf);
+        aligned  := align_rect(ctx, rect, val_rect, opt);
+        draw_text(ctx, val_buf, aligned, .Text, opt);
+    }
+    layer = base_layer;
+
+    return res;
+}
+
+Text_Buffer :: struct
+{
+    backing: []byte,
+    used: int,
+}
+
+@private
+_insert_string_at :: proc(buf: ^Text_Buffer, idx: int, str: string) -> int
+{
+    slen := min(len(str), len(buf.backing)-buf.used);
+
+    copy(buf[idx+slen:], buf[idx:buf.used]);
+    copy(buf[idx:], str[:]);
+
+    buf.used += slen;
+    
+    return slen;
+}
+
+@private
+_remove_string_between :: proc(buf: ^Text_Buffer, start, end: int) -> int
+{
+    start, end := start, end;
+    
+    if start == end do
+        return 0;
+
+    ret := end - start;
+    if start > end
+    {
+        start, end = end, start;
+        ret = 0;
+    }
+
+    copy(buf.backing[start:], buf.backing[end:buf.used]);
+    buf.used -= end - start;
+
+    return ret;
+}
+
+@private
+_remove_char_at :: proc(buf: ^Text_Buffer, idx: int)
+{
+    copy(buf.backing[idx-1:buf.used], buf.backing[idx:]);
+    buf.used -= 1;
+}
+
+@private
+_update_cursor :: proc(using ctx: ^Context, buf: ^Text_Buffer, change: int)
+{
+    if key_down(ctx, .LShift) && text_box.mark == -1
+    {
+        text_box.mark = text_box.cursor;
+    }
+    else if !key_down(ctx, .LShift) && text_box.mark == -1
+    {
+        mark := text_box.mark;
+        text_box.mark = -1;
+
+        if change == -1
+        {
+            text_box.cursor = min(text_box.cursor, mark);
+            return;
+        }
+        else if change == 1
+        {
+            text_box.cursor = max(text_box.cursor, mark);
+            return;
+        }
+    }
+
+    text_box.cursor += change;
+    text_box.cursor = clamp(text_box.cursor, 0, buf.used);
+
+    if text_box.cursor == text_box.mark do
+        text_box.mark = -1;
+}
+
+@private
+char_is_alphanum :: proc(c: byte) -> bool
+{
+    return ('a' <= c && c <= 'z') ||
+        ('A' <= c && c <= 'Z') ||
+        ('0' <= c && c <= '9');
+}
+
+@private
+_word_beg :: proc(buf: ^Text_Buffer, idx: int) -> int
+{
+    for idx-1 > 0 && !char_is_alphanum(buf.backing[idx-1]) do
+        idx -= 1;
+    for idx-1 > 0 && char_is_alphanum(buf.backing[idx-1]) do
+        idx -= 1;
+    if idx == 1 && char_is_alphanum(buf.backing[idx]) do
+        idx -= 1;
+
+    return max(idx, 0);
+}
+
+@private
+_word_end :: proc(buf: ^Text_Buffer, idx: int) -> int
+{
+    for idx < buf.used && !char_is_alphanum(buf.backing[idx]) do
+        idx += 1;
+    for idx < buf.used && char_is_alphanum(buf.backing[idx]) do
+        idx += 1;
+
+    return min(idx, buf.used);
+}
+
+text_input :: proc(using ctx: ^Context, label: string, buf: ^Text_Buffer, opt: Options) -> (res: Results)
+{
+    id := get_id(label, 0);
+
+    rect := layout_rect(ctx);
+    was_focus := id == focus;
+
+    update_focus(ctx, rect, id, opt | {.Hold_Focus});
+
+    if id == hover do
+        cursor_icon = .Bar;
+
+    cursor_start = text_box.cursor;
+    content_rect: Rect;
+    
+    if id == focus
+    {
+        if !was_focus
+        {
+            text_box.mark = buf.used > 0 ? 0 : -1;
+            text_box.cursor = buf.used;
+        }
+
+        if text_input[0] != 0
+        {
+            if text_box.mark != -1
+            {
+                text_box.cursor -= _remove_string_between(buf, text_box.mark, text_box.cursor);
+                text_box.mark = -1;
+            }
+            text_box.cursor += _insert_string_at(buf, text_box.cursor, text_input);
+        }
+
+        // Backspace
+        if key_repeat(ctx, .Backspace)
+        {
+            if text_box.mark != -1 // Delete Marked Region
+            {
+                text_box.cursor -= _remove_string_between(buf, text_input, text_box.cursor);
+            }
+            else if key_down(ctx, .LCtrl)
+            {
+                word_index := _word_beg(buf, text_box.cursor, buf.used);
+                cursor -= _remove_string_between(buf, word_index, text_box.cursor);
+            }
+            else if text_box.cursor > 0
+            {
+                _remove_char_at(buf, text_box.cursor);
+                text_box.cursor -= 1;
+            }
+            text_box.mark = -1;
+        }
+        else if key_repeat(.Delete)
+        {
+            if text_box.mark != -1 // Delete Marked Region
+            {
+                text_box.cursor -= _remove_string_between(buf, text_box.mark, text_box.cursor);
+            }
+            else if key_down(.LCtrl)
+            {
+                word_index := _word_end(buf, text_box.cursor);
+                _remove_string_between(buf, text_box_cursor, word_index);
+            }
+            else if text_box.cursor < buf.used
+            {
+                _remove_char_at(buf, text_box.cursor+1);
+            }
+            text_box.mark = -1;
+        }
+
+        // Enter
+        if key_pressed(ctx, .Enter)
+        {
+            focus = 0;
+            res |= {.Submit};
+        }
+
+        // Cursor Movement
+        if key_down(ctx, .LCtrl) && key_pressed(ctx, .A)
+        {
+            text_box.mark = 0;
+            text_box.cursor = buf.used;
+        }
+
+        if key_repeat(ctx, .Left)
+        {
+            change := -1;
+            if key_down(ctx, .LCtrl) do
+                change = _word_beg(buf, text_box.cursor, buf.used) - text_box.cursor;
+            _update_cursor(ctx, change, buf.used);
+        }
+        else if key_repeat(ctx, .Right)
+        {
+            change := -1;
+            if key_down(ctx, .LCtrl) do
+                change = _word_end(buf, text_box.cursor, buf.used) - text_box.cursor;
+            _update_cursor(ctx, change, buf.used);
+        }
+        else if key_pressed(ctx, .Home) || key_pressed(ctx, .Up)
+        {
+            _update_cursor(ctx, -buf.used, buf.used);
+        }
+        else if key_pressed(ctx, .End) || key_pressed(ctx, .Down)
+        {
+            _update_cursor(ctx, +buf.used, buf.used);
+        }
+    }
+
+    // @Todo(Tyler): Track length of buf
+    content_rect = text_rect(ctx, buf);
+    content_rect = align_rect(ctx, rect, content_rect, opt);
+
+    // Text-Selection with mouse
+    if id == focus && mouse_down(ctx, 0) && buf.used > 0
+    {
+        pos := content_rect.x;
+        cw := f32(0);
+        index := 0;
+        for index < buf.used+1 && pos < cursor.x
+        {
+            cw = get_text_width(style.font, buf.backing[index:][:1], style.text_height);
+            index += 1;
+            pos += cw;
+        }
+        index = max(index-1, 0);
+        if cw > 0 && pos - cursor.x < (cursor.x - (pos-cw)) && index < buf.used do
+            index += 1;
+
+        if mouse_pressed(ctx, 0)
+        {
+            text_box.cursor = index;
+            text_box.mark = -1;
+        }
+        else
+        {
+            if text_box.mark == -1 && text_box.cursor != index do
+                text_box.mark = text_box.cursor;
+            text_box.cursor = index;
+        }
+
+    }
+
+    // Scrolling Text
+    cursor_pos := f32(0);
+    offset_x   := f32(0);
+    if id == focus
+    {
+        offset_x        = get_text_width(style.font, buf.backing[:text_box.offset], style.text_height);
+        content_rect.x -= offset_x;
+
+        cursor_pos = get_text_width(ctx, buf.backing[:text_box.cursor], style.text_height);
+
+        box_min := content_rect.x + offset_x;
+        box_max := box_min + (rect.w - style.padding*2);
+        cursor_rel := content_rect.x + cursor_pos;
+        if cursor_rel > box_max // Scroll forward
+        {
+            diff := cursor_rel - box_max;
+            sum := f32(0);
+            i := text_box.curosr - 1;
+            for sum < diff
+            {
+                sum += get_text_width(style.font, buf.backing[i:][:1], style.text_height);
+                i -= 1;
+                text_box.offset += 1;
+            }
+            content_rect.x -= sum;
+        }
+        else if cursor_rel < box_min // Scroll Backwards
+        {
+            diff := box_min - cursor_rel;
+            sum := 0;
+            i := text_box.cursor;
+            for sum < diff
+            {
+                sum += get_text_width(style.font, buf.backing[i:][:1], style.text_height);
+                i += 1;
+                text_box.offset -= 1;
+            }
+            content_rect.x += sum;
+        }
+        else if (text_box.offset > 0) // Scroll backwards if text can fit
+        {
+            // @Note(Tyler): Get width of one extra character to make sure the entire character will fit
+            offset_to_end = get_text_width(ctx, buf.backing[text_box.offset-1:], style.text_height);
+            if box_min + offset_to_end < box_max
+            {
+                diff := box_max + (box_min + offset_to_end);
+                sum : = f32(0);
+                i := text_box.offset-1;
+                for sum < diff
+                {
+                    sum += get_text_width(style.font, buf.backing[i:][:1], style.text_height);
+                    i -= 1;
+                    text_box.offset -= 1;
+                }
+                content_rect.x -= sum;
+            }
+        }
+    }
+
+    if cursor_start != text_box.cursor do
+        text_box.cursor_lsat_updated = time;
+
+    base_layer := layer;
+
+    // Draw box
+    draw_rect(ctx, rect, id, .Base, opt ~ {.Border});
+
+    // Draw text
+    layer = base_layer+1;
+    {
+        draw_text(ctx, buf, text_rect, .Text, opt);
+    }
 }
