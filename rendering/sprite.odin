@@ -57,7 +57,7 @@ load_sprite :: proc(filepath: string) -> (s: Sprite)
         fmt.eprintf("Failed to load sprite '%s'(%s)\n", filepath, atlas_file);
         os.exit(1);
     }
-    s.atlas = load_texture(atlas_file, string{}, string{});
+    s.atlas = load_texture(atlas_file, {}, {});
 
     anim_name: string;
     anim: ^Animation;
@@ -169,17 +169,17 @@ update_sprite :: proc(s: ^Sprite, dt: f32)
 draw_sprite :: proc(shader: Shader, s: ^Sprite, pos, scale: [2]f32)
 {
     key := s.curr_anim.keys[s.key_index];
-    vertices : [6][2]f32;
+    vertices: [6][3]f32;
     uvs: [6][2]f32;
     
     scaled_dim := key.dim * scale;
 
-    vertices[0] = {pos.x,              pos.y};
-    vertices[1] = {pos.x+scaled_dim.x, pos.y+scaled_dim.y};
-    vertices[2] = {pos.x,              pos.y+scaled_dim.y};
+    vertices[0] = {pos.x,              pos.y, 0};
+    vertices[1] = {pos.x+scaled_dim.x, pos.y+scaled_dim.y, 0};
+    vertices[2] = {pos.x,              pos.y+scaled_dim.y, 0};
     
     vertices[3] = vertices[0];
-    vertices[4] = {pos.x+scaled_dim.x, pos.y};
+    vertices[4] = {pos.x+scaled_dim.x, pos.y, 0};
     vertices[5] = vertices[1];
 
     unit_uv  := key.uv  * {1.0/f32(s.atlas.width), 1.0/f32(s.atlas.height)};
@@ -194,7 +194,7 @@ draw_sprite :: proc(shader: Shader, s: ^Sprite, pos, scale: [2]f32)
     uvs[5] = uvs[1];
 
     gl.BindBuffer(gl.ARRAY_BUFFER, s.vbuff);
-    gl.BufferData(gl.ARRAY_BUFFER, 6*size_of([2]f32), &vertices[0], gl.STATIC_DRAW);
+    gl.BufferData(gl.ARRAY_BUFFER, 6*size_of([3]f32), &vertices[0], gl.STATIC_DRAW);
 
     gl.BindBuffer(gl.ARRAY_BUFFER, s.uvbuff);
     gl.BufferData(gl.ARRAY_BUFFER, 6*size_of([2]f32), &uvs[0], gl.STATIC_DRAW);
@@ -208,7 +208,7 @@ draw_sprite :: proc(shader: Shader, s: ^Sprite, pos, scale: [2]f32)
 
     gl.EnableVertexAttribArray(0);
     gl.BindBuffer(gl.ARRAY_BUFFER, s.vbuff);
-    gl.VertexAttribPointer(0, 2, gl.FLOAT, gl.FALSE, 0, nil);
+    gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 0, nil);
 
     gl.EnableVertexAttribArray(1);
     gl.BindBuffer(gl.ARRAY_BUFFER, s.uvbuff);

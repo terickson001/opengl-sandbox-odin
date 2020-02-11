@@ -11,6 +11,7 @@ import "shared:image"
 Texture_Info :: struct
 {
     width, height: u32,
+    type: u32,
 }
 
 Texture :: struct
@@ -43,10 +44,12 @@ color_texture :: proc(color: [4]f32, normalize: bool) -> Texture
 
     t.info.width  = 1;
     t.info.height = 1;
+    t.info.type   = gl.TEXTURE_2D;
+    
     return t;
 }
 
-texture_pallette :: proc(colors: [][4]f32, normalize: b32) -> Texture
+texture_palette :: proc(colors: [][4]f32, normalize: b32) -> Texture
 {
     t := Texture{};
     gl.GenTextures(1, &t.diffuse);
@@ -81,6 +84,7 @@ texture_pallette :: proc(colors: [][4]f32, normalize: b32) -> Texture
 
     t.info.width  = u32(size);
     t.info.height = u32(size);
+    t.info.type   = gl.TEXTURE_2D;
     
     return t;
 }
@@ -152,7 +156,7 @@ image_texture :: proc(filepath: string) -> (u32, Texture_Info)
 
     gl.BindTexture(gl.TEXTURE_2D, 0);
 
-    return texture_id, {img.width, img.height};
+    return texture_id, {img.width, img.height, gl.TEXTURE_2D};
 }
 
 load_texture :: proc(diff, norm, spec: string) -> Texture

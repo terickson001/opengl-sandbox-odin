@@ -7,13 +7,110 @@ import "shared:gl"
 import "shared:glfw"
 
 import render "rendering"
+import "control"
 import "gui"
+
+gui_text_width :: proc(font: rawptr, text: string, size: int) -> f32
+{
+    return render.get_text_width((^render.Font)(font)^, text, size);
+}
+
+init_gui :: proc(win: render.Window) -> gui.Context
+{
+    using ctx := gui.init();
+    using glfw.Key;
+
+    ctx.get_text_width = gui_text_width;
+    
+    key_map[.Enter]  = int(KEY_ENTER);
+
+    key_map[.LShift] = int(KEY_LEFT_SHIFT);
+    key_map[.LCtrl]  = int(KEY_LEFT_CONTROL);
+    key_map[.LAlt]   = int(KEY_LEFT_ALT);
+    key_map[.LSuper] = int(KEY_LEFT_SUPER);
+
+    key_map[.RShift] = int(KEY_RIGHT_SHIFT);
+    key_map[.RCtrl]  = int(KEY_RIGHT_CONTROL);
+    key_map[.RAlt]   = int(KEY_RIGHT_ALT);
+    key_map[.RSuper] = int(KEY_RIGHT_SUPER);
+
+    key_map[.Left]   = int(KEY_LEFT);
+    key_map[.Right]  = int(KEY_RIGHT);
+    key_map[.Up]     = int(KEY_UP);
+    key_map[.Down]   = int(KEY_DOWN);
+
+    key_map[.Home]   = int(KEY_HOME);
+    key_map[.End]    = int(KEY_END);
+
+    key_map[.A]      = int(KEY_A);
+    key_map[.C]      = int(KEY_C);
+    key_map[.X]      = int(KEY_X);
+    key_map[.V]      = int(KEY_V);
+
+    display.width  = f32(win.width);
+    display.height = f32(win.height);
+    return ctx;
+}
+
+@static gui_palette: render.Texture;
+draw_rect :: proc(rect: gui.Rect, layer: int, color_id: gui.Color_ID)
+{
+    
+}
+
+@static gui_win: gui.Window;
+@static value: f32 = 50;
+@static text_buf := gui.Text_Buffer{};
+do_gui :: proc(ctx: ^gui.Context, win: render.Window, dt: f64)
+{
+    gui.begin(ctx);
+    ctx.ctrl.mouse = {control.mouse_down(0), control.mouse_down(1), control.mouse_down(2)};
+    ctx.time = dt;
+    
+    if .Active in gui.window(ctx, &gui_win, {})
+    {
+        gui.row(ctx, 3, {70, -70, 0}, 0);
+        
+        gui.label(ctx, "Row 1:", {});
+        if .Submit in gui.button(ctx, "Reset", 0, {}) do
+            value = 50;
+        if .Submit in gui.button(ctx, "+5", 0, {}) do
+            value += 5;
+        
+        gui.label(ctx, "Row 2:", {});
+        gui.slider(ctx, "Slider 1", &value, "%.1f", 0, 100, 0, {});
+        if .Submit in gui.button(ctx, "-5", 0, {}) do
+            value -= 5;
+
+        gui.row(ctx, 2, {-100, 0}, 0);
+        gui.text_input(ctx, "Text input", &text_buf, {.Left});
+        gui.number_input(ctx, "Number input", &value, "%.1f", 0, 100, 0, {});
+        gui.window_end(ctx);
+    }
+
+    gui.end(ctx);
+}
+
+draw_gui :: proc(ctx: ^gui.Context)
+{
+    draw: gui.Draw;
+    for gui.next_draw(ctx, &draw)
+    {
+        #partial switch d in draw.variant
+        {
+        case gui.Draw_Rect:
+            draw_rect(d.rect, draw.layer, d.color_id);
+        case gui.Draw_Text:
+            
+        }
+    }
+}
 
 main :: proc()
 {
     init_glfw();
     defer glfw.terminate();
-    
+
     window := render.init_window(1024, 768, "[$float$] Hello, World!");
     glfw.make_context_current(window.handle);
 
@@ -58,6 +155,12 @@ main :: proc()
     fps_buf: [8]byte;
     fps_str: string;
     
+    text_buf.backing = make([]byte, 128);
+    gui_ctx := init_gui(window);
+    gui_win = gui.init_window(&gui_ctx, "A Window", {256, 100, 412, 110});
+    gui_palette := render.texture_palette(gui_ctx.style.colors[:], false);
+    gui_ctx.style.font = cast(rawptr)&font;
+    
     updated: bool;
     for glfw.get_key(window.handle, glfw.KEY_ESCAPE) != glfw.PRESS &&
         !glfw.window_should_close(window.handle)
@@ -75,7 +178,8 @@ main :: proc()
                 nb_frames = 0;
                 accum_time -= 1.0;
             }
-            
+
+            do_gui(&gui_ctx, window, f64(time_step));
             render.update_entity_2d(&adventurer, time_step);
             
             dt -= time_step;
@@ -92,6 +196,8 @@ main :: proc()
             render.draw_text(text_shader, font, string(fps_str[:]),
                              {f32(window.width)-fps_w, f32(window.height-24)},
                              24);
+
+            draw_gui(&gui_ctx);
             
             glfw.swap_buffers(window.handle);
         }

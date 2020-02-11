@@ -37,6 +37,26 @@ Shader :: struct
     },
 }
 
+Shader_Data :: struct
+{
+    resolution:       [2]i32,
+    px_range:         f32,
+
+    M:                [4][4]f32,
+    V:                [4][4]f32,
+    P:                [4][4]f32,
+    MVP:              [4][4]f32,
+    VP:               [4][4]f32,
+
+    diffuse_sampler:  u32,
+    normal_sampler:   u32,
+    specular_sampler: u32,
+
+    light_position_m: [3]f32,
+    light_color:      [3]f32,
+    light_power:      f32,
+}
+
 compile_shader :: proc(filepath: string, kind: u32) -> u32
 {
     id := gl.CreateShader(kind);
