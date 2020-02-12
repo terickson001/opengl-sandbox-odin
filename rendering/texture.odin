@@ -89,9 +89,9 @@ texture_palette :: proc(colors: [][4]f32, normalize: b32) -> Texture
     return t;
 }
 
-texture_pallete_index :: proc(pallete: Texture, i: int) -> [2]f32
+texture_palette_index :: proc(palette: Texture, i: int) -> [2]f32
 {
-    s := int(pallete.info.width);
+    s := int(palette.info.width);
     coord := [2]f32{f32(i%s), f32(i/s)};
     uv := coord / f32(s);
     return uv;

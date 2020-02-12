@@ -53,9 +53,34 @@ init_gui :: proc(win: render.Window) -> gui.Context
 }
 
 @static gui_palette: render.Texture;
-draw_rect :: proc(rect: gui.Rect, layer: int, color_id: gui.Color_ID)
+draw_rect :: proc(r: ^render.Renderer, s: render.Shader, rect: gui.Rect, layer: int, color_id: gui.Color_ID)
 {
+    using rect := rect;
     
+    vertices := make([][2]f32, 6);
+    uvs      := make([][2]f32, 6);
+
+    y = 768 - y - h;
+
+    vertices[0] = {x,   y};
+    vertices[1] = {x+w, y+h};
+    vertices[2] = {x,   y+h};
+
+    vertices[3] = {x,   y};
+    vertices[4] = {x+w, y};
+    vertices[5] = {x+w, y+h};
+
+    c_uv := render.texture_palette_index(gui_palette, int(color_id));
+    uv_size := 1/f32(gui_palette.info.width);
+    uvs[0] = c_uv;
+    uvs[1] = {c_uv.x + uv_size, c_uv.y + uv_size};
+    uvs[2] = {c_uv.x,           c_uv.y + uv_size};
+
+    uvs[3] = c_uv;
+    uvs[4] = {c_uv.x + uv_size, c_uv.y};
+    uvs[5] = {c_uv.x + uv_size, c_uv.y + uv_size};
+
+    render.add_batch(r, layer, s, gui_palette, true, vertices, uvs, [][0]f32{});
 }
 
 @static gui_win: gui.Window;
@@ -69,41 +94,45 @@ do_gui :: proc(ctx: ^gui.Context, win: render.Window, dt: f64)
     
     if .Active in gui.window(ctx, &gui_win, {})
     {
-        gui.row(ctx, 3, {70, -70, 0}, 0);
+        /* gui.row(ctx, 3, {70, -70, 0}, 0); */
         
-        gui.label(ctx, "Row 1:", {});
-        if .Submit in gui.button(ctx, "Reset", 0, {}) do
-            value = 50;
-        if .Submit in gui.button(ctx, "+5", 0, {}) do
-            value += 5;
+        /* gui.label(ctx, "Row 1:", {}); */
+        /* if .Submit in gui.button(ctx, "Reset", 0, {}) do */
+        /*     value = 50; */
+        /* if .Submit in gui.button(ctx, "+5", 0, {}) do */
+        /*     value += 5; */
         
-        gui.label(ctx, "Row 2:", {});
-        gui.slider(ctx, "Slider 1", &value, "%.1f", 0, 100, 0, {});
-        if .Submit in gui.button(ctx, "-5", 0, {}) do
-            value -= 5;
+        /* gui.label(ctx, "Row 2:", {}); */
+        /* gui.slider(ctx, "Slider 1", &value, "%.1f", 0, 100, 0, {}); */
+        /* if .Submit in gui.button(ctx, "-5", 0, {}) do */
+        /*     value -= 5; */
 
-        gui.row(ctx, 2, {-100, 0}, 0);
-        gui.text_input(ctx, "Text input", &text_buf, {.Left});
-        gui.number_input(ctx, "Number input", &value, "%.1f", 0, 100, 0, {});
+        /* gui.row(ctx, 2, {-100, 0}, 0); */
+        /* gui.text_input(ctx, "Text input", &text_buf, {.Left}); */
+        /* gui.number_input(ctx, "Number input", &value, "%.1f", 0, 100, 0, {}); */
         gui.window_end(ctx);
     }
 
     gui.end(ctx);
 }
 
-draw_gui :: proc(ctx: ^gui.Context)
+draw_gui :: proc(renderer: ^render.Renderer, ctx: ^gui.Context, shader: render.Shader)
 {
+    fmt.printf("BEGIN\n");
     draw: gui.Draw;
     for gui.next_draw(ctx, &draw)
     {
         #partial switch d in draw.variant
         {
         case gui.Draw_Rect:
-            draw_rect(d.rect, draw.layer, d.color_id);
+            fmt.printf("RECT\n");
+            draw_rect(renderer, shader, d.rect, draw.layer, d.color_id);
+            
         case gui.Draw_Text:
             
         }
     }
+    fmt.printf("\n");
 }
 
 main :: proc()
@@ -158,8 +187,11 @@ main :: proc()
     text_buf.backing = make([]byte, 128);
     gui_ctx := init_gui(window);
     gui_win = gui.init_window(&gui_ctx, "A Window", {256, 100, 412, 110});
-    gui_palette := render.texture_palette(gui_ctx.style.colors[:], false);
+    gui_palette = render.texture_palette(gui_ctx.style.colors[:], false);
     gui_ctx.style.font = cast(rawptr)&font;
+
+    renderer := render.init_renderer();
+    renderer.shader_data.resolution = {i32(window.width), i32(window.height)};
     
     updated: bool;
     for glfw.get_key(window.handle, glfw.KEY_ESCAPE) != glfw.PRESS &&
@@ -181,7 +213,15 @@ main :: proc()
 
             do_gui(&gui_ctx, window, f64(time_step));
             render.update_entity_2d(&adventurer, time_step);
-            
+
+            /*
+            size := adventurer.sprite.dim * adventurer.scale;
+            h := f32(window.height)-size.y;
+            w := f32(window.width)-size.x;
+            adventurer.pos.y =  math.sin(f32(current_time)*4)*(h/8)+h/2;
+            adventurer.pos.x =  math.cos(f32(current_time)*4)*-1*(w/8)+w/2;
+            */
+
             dt -= time_step;
         }
 
@@ -197,7 +237,9 @@ main :: proc()
                              {f32(window.width)-fps_w, f32(window.height-24)},
                              24);
 
-            draw_gui(&gui_ctx);
+            render.begin_render(&renderer);
+            draw_gui(&renderer, &gui_ctx, s);
+            render.draw_all(&renderer);
             
             glfw.swap_buffers(window.handle);
         }
