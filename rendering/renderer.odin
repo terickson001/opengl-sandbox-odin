@@ -42,6 +42,8 @@ init_renderer :: proc() -> Renderer
     for _, i in layers do
         layers[i] = make([dynamic]Batch);
 
+    gl.GenBuffers(3, &vbuff);
+    
     return r;
 }
 
@@ -75,7 +77,7 @@ add_batch :: proc(renderer: ^Renderer, layer: int, shader: Shader, tex: Texture,
     batch.uv_stride = B;
     batch.n_stride  = C;
 
-    append(&renderer.layers[layer], batch);;
+    append(&renderer.layers[layer], batch);
 }
 
 @private
@@ -121,7 +123,7 @@ draw_batch :: proc(using renderer: ^Renderer, using batch: ^Batch)
         gl.VertexAttribPointer(1, i32(uv_stride), gl.FLOAT, gl.FALSE, 0, nil);
     }
 
-    if len(uvs) > 0
+    if len(normals) > 0
     {
         gl.EnableVertexAttribArray(2);
         gl.BindBuffer(gl.ARRAY_BUFFER, nbuff);
@@ -141,10 +143,10 @@ draw_batch :: proc(using renderer: ^Renderer, using batch: ^Batch)
     
     gl.DrawArrays(gl.TRIANGLES, 0, i32(vertex_count));
 
-    if blending do          gl.Disable(gl.BLEND);
+    if blending          do gl.Disable(gl.BLEND);
     if len(vertices) > 0 do gl.DisableVertexAttribArray(0);
-    if len(uvs) > 0 do      gl.DisableVertexAttribArray(1);
-    if len(normals) > 0 do  gl.DisableVertexAttribArray(2);
+    if len(uvs) > 0      do gl.DisableVertexAttribArray(1);
+    if len(normals) > 0  do gl.DisableVertexAttribArray(2);
 }
 
 draw_layer :: proc(using renderer: ^Renderer, idx: int)

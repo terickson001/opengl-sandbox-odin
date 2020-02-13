@@ -23,6 +23,8 @@ init_gui :: proc(win: render.Window) -> gui.Context
     ctx.get_text_width = gui_text_width;
     
     key_map[.Enter]  = int(KEY_ENTER);
+    key_map[.Backspace]  = int(KEY_BACKSPACE);
+    key_map[.Delete]  = int(KEY_DELETE);
 
     key_map[.LShift] = int(KEY_LEFT_SHIFT);
     key_map[.LCtrl]  = int(KEY_LEFT_CONTROL);
@@ -50,6 +52,60 @@ init_gui :: proc(win: render.Window) -> gui.Context
     display.width  = f32(win.width);
     display.height = f32(win.height);
     return ctx;
+}
+
+draw_text :: proc(r: ^render.Renderer, s: render.Shader, pos: [2]f32, font: render.Font, text: string, size: f32, layer: int, color_id: gui.Color_ID)
+{
+    if len(text) == 0 do
+        return;
+
+    pos := pos;
+    pos.y = 768 - pos.y - size;
+    vertices := make([dynamic][2]f32);
+    uvs      := make([dynamic][3]f32);
+    
+    scale := f32(size) / (font.info.ascent - font.info.descent);
+    for c in text
+    {
+        if 32 > c || c > 128 do
+            continue;
+
+        metrics := font.info.metrics[c-32];
+        if c == 32
+        {
+            pos.x += metrics.advance * scale;
+            continue;
+        }
+
+        x0 := pos.x + (metrics.x0 * scale);
+        y0 := pos.y + (metrics.y0 * scale);
+        x1 := pos.x + (metrics.x1 * scale);
+        y1 := pos.y + (metrics.y1 * scale);
+
+        ux0 := metrics.x0 / f32(font.info.size);
+        uy0 := metrics.y0 / f32(font.info.size);
+        ux1 := metrics.x1 / f32(font.info.size);
+        uy1 := metrics.y1 / f32(font.info.size);
+
+        
+        append(&vertices, [2]f32{x0, y0});
+        append(&vertices, [2]f32{x1, y0});
+        append(&vertices, [2]f32{x0, y1});
+        append(&vertices, [2]f32{x1, y1});
+        append(&vertices, [2]f32{x0, y1});
+        append(&vertices, [2]f32{x1, y0});
+
+        append(&uvs, [3]f32{ux0, uy0, f32(c-32)});
+        append(&uvs, [3]f32{ux1, uy0, f32(c-32)});
+        append(&uvs, [3]f32{ux0, uy1, f32(c-32)});
+        append(&uvs, [3]f32{ux1, uy1, f32(c-32)});
+        append(&uvs, [3]f32{ux0, uy1, f32(c-32)});
+        append(&uvs, [3]f32{ux1, uy0, f32(c-32)});
+
+        pos.x += metrics.advance * scale;
+    }
+
+    render.add_batch(r, layer, s, font.texture, true, vertices[:], uvs[:], [][0]f32{});
 }
 
 @static gui_palette: render.Texture;
@@ -88,27 +144,33 @@ draw_rect :: proc(r: ^render.Renderer, s: render.Shader, rect: gui.Rect, layer: 
 @static text_buf := gui.Text_Buffer{};
 do_gui :: proc(ctx: ^gui.Context, win: render.Window, dt: f64)
 {
-    gui.begin(ctx);
     ctx.ctrl.mouse = {control.mouse_down(0), control.mouse_down(1), control.mouse_down(2)};
-    ctx.time = dt;
+    ctx.ctrl.cursor = control.get_mouse_pos();
+    for k, i in control.KEYBOARD.keys do
+        ctx.ctrl.keys_down[i+32] = k == .Pressed || k == .Down || k == .Repeat;
+    gui.buffer_append(&ctx.ctrl.input_buf, string(control.KEYBOARD.text_buffer[:]));
+    resize(control.KEYBOARD.text_buffer, 0);
+
+    ctx.delta_time = dt;
+    gui.begin(ctx);
     
     if .Active in gui.window(ctx, &gui_win, {})
     {
-        /* gui.row(ctx, 3, {70, -70, 0}, 0); */
+        gui.row(ctx, 3, {70, -70, 0}, 0);
         
-        /* gui.label(ctx, "Row 1:", {}); */
-        /* if .Submit in gui.button(ctx, "Reset", 0, {}) do */
-        /*     value = 50; */
-        /* if .Submit in gui.button(ctx, "+5", 0, {}) do */
-        /*     value += 5; */
+        gui.label(ctx, "Row 1:", {});
+        if .Submit in gui.button(ctx, "Reset", 0, {}) do
+            value = 50;
+        if .Submit in gui.button(ctx, "+5", 0, {}) do
+            value += 5;
         
-        /* gui.label(ctx, "Row 2:", {}); */
-        /* gui.slider(ctx, "Slider 1", &value, "%.1f", 0, 100, 0, {}); */
-        /* if .Submit in gui.button(ctx, "-5", 0, {}) do */
-        /*     value -= 5; */
+        gui.label(ctx, "Row 2:", {});
+        gui.slider(ctx, "Slider 1", &value, "%.1f", 0, 100, 0, {});
+        if .Submit in gui.button(ctx, "-5", 0, {}) do
+            value -= 5;
 
-        /* gui.row(ctx, 2, {-100, 0}, 0); */
-        /* gui.text_input(ctx, "Text input", &text_buf, {.Left}); */
+        gui.row(ctx, 2, {-100, 0}, 0);
+        gui.text_input(ctx, "Text input", &text_buf, {.Left});
         /* gui.number_input(ctx, "Number input", &value, "%.1f", 0, 100, 0, {}); */
         gui.window_end(ctx);
     }
@@ -116,23 +178,20 @@ do_gui :: proc(ctx: ^gui.Context, win: render.Window, dt: f64)
     gui.end(ctx);
 }
 
-draw_gui :: proc(renderer: ^render.Renderer, ctx: ^gui.Context, shader: render.Shader)
+draw_gui :: proc(renderer: ^render.Renderer, ctx: ^gui.Context, sgen, stext: render.Shader, font: render.Font)
 {
-    fmt.printf("BEGIN\n");
     draw: gui.Draw;
     for gui.next_draw(ctx, &draw)
     {
         #partial switch d in draw.variant
         {
         case gui.Draw_Rect:
-            fmt.printf("RECT\n");
-            draw_rect(renderer, shader, d.rect, draw.layer, d.color_id);
+            draw_rect(renderer, sgen, d.rect, draw.layer, d.color_id);
             
         case gui.Draw_Text:
-            
+            draw_text(renderer, stext, d.pos, font, d.text, d.size, draw.layer, d.color_id);
         }
     }
-    fmt.printf("\n");
 }
 
 main :: proc()
@@ -144,6 +203,14 @@ main :: proc()
     glfw.make_context_current(window.handle);
 
     init_gl();
+    
+    glfw.set_key_callback         (window.handle, control.update_keystate);
+    glfw.set_mouse_button_callback(window.handle, control.update_mousebuttons);
+    glfw.set_cursor_pos_callback  (window.handle, control.update_mousepos);
+    glfw.set_scroll_callback      (window.handle, control.update_mousescroll);
+    glfw.set_char_callback        (window.handle, control.keyboard_char_callback);
+    control.KEYBOARD.text_buffer = new([dynamic]byte);
+    control.KEYBOARD.text_buffer^ = make([dynamic]byte);
     
     gl.Enable(gl.DEPTH_TEST);
     gl.DepthFunc(gl.LESS);
@@ -238,8 +305,13 @@ main :: proc()
                              24);
 
             render.begin_render(&renderer);
-            draw_gui(&renderer, &gui_ctx, s);
+            draw_gui(&renderer, &gui_ctx, s, text_shader, font);
+            
+            gl.Disable(gl.DEPTH_TEST);
+            gl.DepthMask(gl.FALSE);
             render.draw_all(&renderer);
+            gl.Enable(gl.DEPTH_TEST);
+            gl.DepthMask(gl.TRUE);
             
             glfw.swap_buffers(window.handle);
         }
@@ -263,6 +335,7 @@ init_glfw :: proc()
     glfw.window_hint(glfw.OPENGL_FORWARD_COMPAT, gl.TRUE);
     glfw.window_hint(glfw.OPENGL_PROFILE, int(glfw.OPENGL_CORE_PROFILE));
     glfw.window_hint(glfw.DEPTH_BITS, 24);
+    
     fmt.println("GLFW initialized");
 }
 

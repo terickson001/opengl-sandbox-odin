@@ -11,17 +11,17 @@ Mouse :: struct
 }
 @static MOUSE: Mouse;
 
-update_mousepos :: proc(window: ^glfw.Window_Handle, x, y: f64)
+update_mousepos :: proc "c" (window: glfw.Window_Handle, x, y: f64)
 {
     MOUSE.pos = {f32(x), f32(y)};
 }
 
-update_mousescroll :: proc(window: ^glfw.Window_Handle, xoff, yoff: f64)
+update_mousescroll :: proc "c" (window: glfw.Window_Handle, xoff, yoff: f64)
 {
     MOUSE.scroll = {f32(xoff), f32(yoff)};
 }
 
-update_mousebuttons :: proc(window: ^glfw.Window_Handle, button, action, mods: i32)
+update_mousebuttons :: proc "c" (window: glfw.Window_Handle, button, action, mods: i32)
 {
     if button > 7
     {

@@ -10,7 +10,7 @@ Keyboard :: struct
 }
 @static KEYBOARD: Keyboard;
 
-update_keystate :: proc(window: ^glfw.Window_Handle,
+update_keystate :: proc "c" (window: glfw.Window_Handle,
                         keycode, scancode, action, mods: i32)
 {
     code := keycode - 32;
@@ -101,7 +101,7 @@ keyboard_text_unhook :: proc()
     KEYBOARD.text_buffer = nil;
 }
 
-keyboard_char_callback :: proc(window: ^glfw.Window_Handle, codepoint: u32)
+keyboard_char_callback :: proc "c" (window: glfw.Window_Handle, codepoint: rune)
 {
     if KEYBOARD.text_buffer != nil do
         append(KEYBOARD.text_buffer, byte(codepoint));

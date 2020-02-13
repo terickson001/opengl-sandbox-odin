@@ -7,9 +7,9 @@ import "core:sort"
 import "core:strings"
 import "core:intrinsics"
 import "core:math"
+import "core:os"
 
 import "../util"
-
 
 Cursor :: enum u8
 {
@@ -20,22 +20,22 @@ Cursor :: enum u8
     Hand,
 }
 
-Res :: enum u8
+Res :: enum
 {
-    Submit = 0x1,
-    Update = 0x2,
-    Active = 0x4,
+    Submit,
+    Update,
+    Active,
 }
 Results :: bit_set[Res];
 
-Opt :: enum u8
+Opt :: enum
 {
-    Right      = 0x01,
-    Left       = 0x02,
-    Border     = 0x04,
-    Hold_Focus = 0x08,
-    Bottom     = 0x10,
-    Top        = 0x20,
+    Right,
+    Left,
+    Border,
+    Hold_Focus,
+    Bottom,
+    Top,
 }
 Options :: bit_set[Opt];
 
@@ -337,6 +337,9 @@ Context :: struct
 {
     hover          : u64,
     focus          : u64,
+    last_focus     : u64,
+    last_hover     : u64,
+
     layer          : int,
     
     containers     : [dynamic]Rect,
@@ -355,7 +358,8 @@ Context :: struct
     last_mouse     : [3]bool,
     last_keys_down : [MAX_KEY_COUNT]bool,
     last_key_times : [MAX_KEY_COUNT]f32,
-    
+
+    delta_time     : f64,
     time           : f64,
 
     // Window State
@@ -370,12 +374,14 @@ Context :: struct
     num_input_buf  : Text_Buffer,
 }
 
+@private
 hash_id :: proc(data: rawptr, size: int) -> u64
 {
     slice := mem.slice_ptr((^byte)(data), size);
     return hash.crc64(slice);
 }
 
+@private
 get_id :: proc(lbl: string, icon: int) -> u64
 {
     lbl  := transmute([]byte)lbl;
@@ -395,12 +401,14 @@ key_pressed  :: proc(using ctx: ^Context, k: Key_Code) -> bool {return  keys_dow
 key_up       :: proc(using ctx: ^Context, k: Key_Code) -> bool {return !keys_down[key_map[k]];}
 key_released :: proc(using ctx: ^Context, k: Key_Code) -> bool {return !keys_down[key_map[k]] &&  last_keys_down[key_map[k]];}
 
-key_repeat   :: proc(using ctx: ^Context, k: Key_Code) -> bool
+key_repeat :: proc(using ctx: ^Context, k: Key_Code) -> bool
 {
+    if key_pressed(ctx, k) do return true;
     if key_down(ctx, k)
     {
-        prev_repeat := math.floor((last_key_times[k] - repeat_delay) / repeat_int);
-        new_repeat  := math.floor((key_times[k]      - repeat_delay) / repeat_int);
+
+        prev_repeat := math.floor((last_key_times[key_map[k]] - repeat_delay) / repeat_int);
+        new_repeat  := math.floor((key_times[key_map[k]]      - repeat_delay) / repeat_int);
         return new_repeat > prev_repeat && new_repeat > 0;
     }
     return false;
@@ -451,7 +459,17 @@ init :: proc() -> (ctx: Context)
     windows    = make([dynamic]^Window);
     containers = make([dynamic]Rect);
     // keybinds   = make(map[string]Keybind);
-    
+
+    input_buf.backing = make([]byte, 512);
+    repeat_delay = 0.65;
+    repeat_int   = 0.03;
+
+    for _, i in key_times
+    {
+        key_times[i] = -1;
+        last_key_times[i] = -1;
+    }
+        
     return ctx;
 }
 
@@ -463,6 +481,8 @@ begin :: proc(using ctx: ^Context)
 
     draw_idx = 0;
 
+    time += delta_time;
+    
     push_container(ctx, {0, 0, display.height, display.width});
     
     layout.pos = {0, 0};
@@ -474,7 +494,7 @@ begin :: proc(using ctx: ^Context)
     cursor_icon = .Arrow;
 
     for _, i in keys_down do
-        key_times[i] = keys_down[i] ? (key_times[i] == -1.0 ? 0.0 : key_times[i] + f32(time)) : -1.0;
+        key_times[i] = keys_down[i] ? (key_times[i] == -1.0 ? 0.0 : key_times[i] + f32(delta_time)) : -1.0;
 }
 
 @private
@@ -494,6 +514,9 @@ end :: proc(using ctx: ^Context)
     mem.zero_slice(mouse[:]);
     mem.zero_slice(keys_down[:]);
     mem.zero_slice(scroll[:]);
+
+    last_focus = focus;
+    last_hover = hover;
     
     // Sort windows by layer
     sort.quick_sort_proc(windows[:], win_zcmp);
@@ -633,10 +656,13 @@ update_focus :: proc(using ctx: ^Context, rect: Rect, id: u64, opt: Options)
     if mouse_over && !mouse_down(ctx, 0) do
         hover = id;
 
+    if focus == id && .Hold_Focus notin opt do
+        fmt.printf("SHOULD REMOVE FOCUS\n  %#v\n\n", opt);
+    
     if focus == id &&
-        (mouse_pressed(ctx, 0) && !mouse_over) ||
-        (!mouse_down(ctx, 0) && .Hold_Focus notin opt) do
-            focus = 0;
+        ((mouse_pressed(ctx, 0) && !mouse_over) ||
+         (!mouse_down(ctx, 0) && .Hold_Focus notin opt)) do
+             focus = 0;
 
     if hover == id
     {
@@ -730,10 +756,10 @@ button :: proc(using ctx: ^Context, lbl: string, icon: int, opt: Options) -> (re
     rect := layout_rect(ctx);
 
     base_layer := layer;
-    was_focus  := id == focus;
+    // was_focus  := id == focus;
     update_focus(ctx, rect, id, {});
 
-    if was_focus && mouse_released(ctx, 0) && id == hover do
+    if last_focus == id && mouse_released(ctx, 0) && id == hover do
         res |= {.Submit};
 
     draw_rect(ctx, rect, id, .Button, {.Border});
@@ -749,7 +775,7 @@ button :: proc(using ctx: ^Context, lbl: string, icon: int, opt: Options) -> (re
     return res;
 }
 
-slider :: proc(using ctx: ^Context, label: string, value: ^$T, fmt_str: string, upper, lower, step: T, opt: Options) -> (res: Results) where intrinsics.type_is_numeric(T)
+slider :: proc(using ctx: ^Context, label: string, value: ^$T, fmt_str: string, lower, upper, step: T, opt: Options) -> (res: Results) where intrinsics.type_is_numeric(T)
 {
     id := get_id(label, 0);
 
@@ -769,12 +795,11 @@ slider :: proc(using ctx: ^Context, label: string, value: ^$T, fmt_str: string, 
         add := scroll.y * (step > 0 ? step : T(1));
         value^ += add;
     }
-
     value^ = clamp(value^, lower, upper);
 
     if value^ != prev do
         res |= {.Update};
-    
+
     base_layer := layer;
 
     // Draw Slider
@@ -813,6 +838,10 @@ buffer_string :: proc(buf: Text_Buffer) -> string
     return string(buf.backing[:buf.used]);
 }
 
+buffer_append :: proc(buf: ^Text_Buffer, str: string)
+{
+    _insert_string_at(buf, buf.used, str);
+}
 @private
 _insert_string_at :: proc(buf: ^Text_Buffer, idx: int, str: string) -> int
 {
@@ -924,7 +953,7 @@ text_input :: proc(using ctx: ^Context, label: string, buf: ^Text_Buffer, opt: O
     id := get_id(label, 0);
 
     rect := layout_rect(ctx);
-    was_focus := id == focus;
+    // was_focus := id == focus;
 
     update_focus(ctx, rect, id, opt | {.Hold_Focus});
 
@@ -936,20 +965,20 @@ text_input :: proc(using ctx: ^Context, label: string, buf: ^Text_Buffer, opt: O
     
     if id == focus
     {
-        if !was_focus
+        if last_focus != id
         {
             text_box.mark = buf.used > 0 ? 0 : -1;
             text_box.cursor = buf.used;
         }
 
-        if input_buf.backing[0] != 0
+        if input_buf.used > 0
         {
             if text_box.mark != -1
             {
                 text_box.cursor -= _remove_string_between(buf, text_box.mark, text_box.cursor);
                 text_box.mark = -1;
             }
-            text_box.cursor += _insert_string_at(buf, text_box.cursor, string(input_buf.backing[:]));
+            text_box.cursor += _insert_string_at(buf, text_box.cursor, string(input_buf.backing[:input_buf.used]));
         }
 
         // Backspace
@@ -1121,7 +1150,7 @@ text_input :: proc(using ctx: ^Context, label: string, buf: ^Text_Buffer, opt: O
     }
 
     if cursor_start != text_box.cursor do
-        text_box.cursor_last_updated = time;
+        text_box.cursor_last_updated = delta_time;
 
     base_layer := layer;
 
@@ -1183,14 +1212,14 @@ number_input :: proc(using ctx: ^Context, lbl: string, value: ^$T, fmt_str: stri
 {
     id := get_id(lbl, 0);
     rect := layout_peek_rect(ctx);
-    was_focus := focus == id;
+    // was_focus := focus == id;
     update_focus(ctx, rect, id, opt | {.Hold_Focus});
 
     
     vbuf: Text_Buffer;
     if focus == id
     {
-        if !was_focus
+        if last_focus != id
         {
             text_box.mark = 0;
             vbuf.used = 0;
@@ -1271,7 +1300,6 @@ window :: proc(using ctx: ^Context, win: ^Window, opt: Options) -> (res: Results
 
     push_container(ctx, window_container(ctx, win));
 
-    //draws_start := len(draws);
     win.draws.start = len(draws);
     append(&windows, win);
 
@@ -1297,7 +1325,6 @@ window :: proc(using ctx: ^Context, win: ^Window, opt: Options) -> (res: Results
         // Handle title drag
         temp_label = fmt.tprintf("%s.__TITLE__", win.title);
         title_id := get_id(temp_label, 0);
-        was_focus = focus == title_id;
         update_focus(ctx, title, title_id, opt);
         if focus == title_id
         {
@@ -1308,10 +1335,10 @@ window :: proc(using ctx: ^Context, win: ^Window, opt: Options) -> (res: Results
         // Handle close button
         temp_label = fmt.tprintf("%s.__CLOSE__", win.title);
         close_id := get_id(temp_label, 0);
-        was_focus = focus == close_id;
         update_focus(ctx, close, close_id, {});
-        close_hover := hover == close_id;
-        if was_focus && mouse_released(ctx, 0) && hover == close_id
+        close_hover = hover == close_id;
+
+        if last_focus == close_id && mouse_released(ctx, 0) && close_hover
         {
             window_focus = nil;
             window_hover = nil;
