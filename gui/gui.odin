@@ -320,18 +320,7 @@ Control :: struct
     keys_down    : [MAX_KEY_COUNT]bool,
     key_times    : [MAX_KEY_COUNT]f32,
     input_buf    : Text_Buffer,
-
-    // keybinds     : Keybind_Map,
 }
-
-/*
-Keybind :: struct
-{
-    mod: [4]Key_Code,
-    key: Key_Code,
-}
-Keybind_Map :: map[string]Keybind;
-*/
 
 Context :: struct
 {
@@ -414,27 +403,6 @@ key_repeat :: proc(using ctx: ^Context, k: Key_Code) -> bool
     return false;
 }
 
-/*
-keybind_pressed :: proc(using ctx: ^Context, kbd: string) -> bool
-{
-    keybind, ok := keybinds[kbd];
-    if !ok
-    {
-        fmt.eprintf("Keybind %q not defined\n", kbd);
-        return false;
-    }
-
-    pressed := true;
-    for m in keybind.mod do
-        if m != .None do
-            pressed &&= key_down(ctx, m);
-
-    pressed &&= key_pressed(ctx, keybind.key);
-    
-    return pressed;
-}
-*/
-
 push_container :: proc(using ctx: ^Context, container: Rect)
 {
     append(&containers, container);
@@ -458,7 +426,6 @@ init :: proc() -> (ctx: Context)
     draws      = make([dynamic]Draw);
     windows    = make([dynamic]^Window);
     containers = make([dynamic]Rect);
-    // keybinds   = make(map[string]Keybind);
 
     input_buf.backing = make([]byte, 512);
     repeat_delay = 0.65;
@@ -656,9 +623,6 @@ update_focus :: proc(using ctx: ^Context, rect: Rect, id: u64, opt: Options)
     if mouse_over && !mouse_down(ctx, 0) do
         hover = id;
 
-    if focus == id && .Hold_Focus notin opt do
-        fmt.printf("SHOULD REMOVE FOCUS\n  %#v\n\n", opt);
-    
     if focus == id &&
         ((mouse_pressed(ctx, 0) && !mouse_over) ||
          (!mouse_down(ctx, 0) && .Hold_Focus notin opt)) do
@@ -890,7 +854,7 @@ _update_cursor :: proc(using ctx: ^Context, buf: ^Text_Buffer, change: int)
     {
         text_box.mark = text_box.cursor;
     }
-    else if !key_down(ctx, .LShift) && text_box.mark == -1
+    else if !key_down(ctx, .LShift) && text_box.mark != -1
     {
         mark := text_box.mark;
         text_box.mark = -1;
@@ -953,7 +917,6 @@ text_input :: proc(using ctx: ^Context, label: string, buf: ^Text_Buffer, opt: O
     id := get_id(label, 0);
 
     rect := layout_rect(ctx);
-    // was_focus := id == focus;
 
     update_focus(ctx, rect, id, opt | {.Hold_Focus});
 
@@ -1041,7 +1004,7 @@ text_input :: proc(using ctx: ^Context, label: string, buf: ^Text_Buffer, opt: O
         }
         else if key_repeat(ctx, .Right)
         {
-            change := -1;
+            change := 1;
             if key_down(ctx, .LCtrl) do
                 change = _word_end(buf, text_box.cursor) - text_box.cursor;
             _update_cursor(ctx, buf, change);
@@ -1066,7 +1029,7 @@ text_input :: proc(using ctx: ^Context, label: string, buf: ^Text_Buffer, opt: O
         pos := content_rect.x;
         cw := f32(0);
         index := 0;
-        for index < buf.used+1 && pos < cursor.x
+        for index < buf.used && pos < cursor.x
         {
             cw = get_text_width(style.font, buffer_string(buf^)[index:][:1], style.text_height);
             index += 1;
@@ -1095,11 +1058,11 @@ text_input :: proc(using ctx: ^Context, label: string, buf: ^Text_Buffer, opt: O
     offset_x   := f32(0);
     if id == focus
     {
-        offset_x        = get_text_width(style.font, buffer_string(buf^)[:text_box.offset], style.text_height);
+        offset_x = get_text_width(style.font, buffer_string(buf^)[:text_box.offset], style.text_height);
         content_rect.x -= offset_x;
 
-        cursor_pos = get_text_width(ctx, buffer_string(buf^)[:text_box.cursor], style.text_height);
-
+        cursor_pos = get_text_width(style.font, buffer_string(buf^)[:text_box.cursor], style.text_height);
+        
         box_min := content_rect.x + offset_x;
         box_max := box_min + (rect.w - f32(style.padding*2));
         cursor_rel := content_rect.x + cursor_pos;
@@ -1149,8 +1112,8 @@ text_input :: proc(using ctx: ^Context, label: string, buf: ^Text_Buffer, opt: O
         }
     }
 
-    if cursor_start != text_box.cursor do
-        text_box.cursor_last_updated = delta_time;
+    if cursor_start != text_box.cursor || (focus == id && last_focus != id) do
+        text_box.cursor_last_updated = time;
 
     base_layer := layer;
 
