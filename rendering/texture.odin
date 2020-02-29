@@ -177,15 +177,15 @@ activate_texture :: proc(s: Shader, t: Texture)
 {
     gl.ActiveTexture(gl.TEXTURE0);
     gl.BindTexture(gl.TEXTURE_2D, t.diffuse);
-    gl.Uniform1i(s.uniforms.diffuse_sampler, 0);
+    gl.Uniform1i(s.uniforms["diffuse_sampler"], 0);
 
     gl.ActiveTexture(gl.TEXTURE1);
     gl.BindTexture(gl.TEXTURE_2D, t.normal);
-    gl.Uniform1i(s.uniforms.normal_sampler, 1);
+    gl.Uniform1i(s.uniforms["normal_sampler"], 1);
 
     gl.ActiveTexture(gl.TEXTURE2);
     gl.BindTexture(gl.TEXTURE_2D, t.specular);
-    gl.Uniform1i(s.uniforms.specular_sampler, 2);
+    gl.Uniform1i(s.uniforms["specular_sampler"], 2);
 }
 
 disable_texture :: proc(s: Shader, t: Texture)

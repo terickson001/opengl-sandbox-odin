@@ -6,6 +6,7 @@ import "core:strings"
 
 import "shared:gl"
 import "shared:image"
+import glf "shared:gl_font"
 
 import "../util"
 
@@ -207,8 +208,8 @@ draw_text :: proc(s: Shader, font: Font, text: string, pos: [2]f32, size: int)
 
     gl.UseProgram(s.id);
 
-    gl.Uniform2i(s.uniforms.resolution, 1024, 768);
-    gl.Uniform1f(s.uniforms.px_range, 5);
+    gl.Uniform2i(s.uniforms["resolution"], 1024, 768);
+    gl.Uniform1f(s.uniforms["px_range"], 5);
 
     gl.ActiveTexture(gl.TEXTURE0);
     gl.BindTexture(gl.TEXTURE_2D_ARRAY, font.texture.diffuse);

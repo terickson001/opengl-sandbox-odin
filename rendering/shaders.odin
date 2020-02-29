@@ -7,40 +7,43 @@ import "core:strings"
 import "core:mem"
 import "core:reflect"
 
+import "../util"
+
 Shader :: struct
 {
     id: u32,
     time: os.File_Time,
 
     vs_filepath: string,
-    gs_filepath: string,
     fs_filepath: string,
 
-    uniforms: struct
-    {
-        resolution:       i32,
-        px_range:         i32,
+    uniforms   : map[string]i32,
+    attributes : [dynamic]i32
+}
 
-        M:                i32,
-        V:                i32,
-        P:                i32,
-        MVP:              i32,
-        VP:               i32,
+Uniform :: struct
+{
+    name: string,
+    location: i32,
+    type: typeid,
+}
 
-        diffuse_sampler:  i32,
-        normal_sampler:   i32,
-        specular_sampler: i32,
+Buffer :: struct
+{
+    name: string,
+    location: i32,
+    type: typeid,
+}
 
-        light_position_m: i32,
-        light_color:      i32,
-        light_power:      i32,
-    },
+Shader_Interface :: struct
+{
+    uniforms: map[string]Uniform,
+    buffers: map[string]Buffer,
 }
 
 Shader_Data :: struct
 {
     resolution:       [2]i32,
-    px_range:         f32,
 
     M:                [4][4]f32,
     V:                [4][4]f32,
@@ -57,17 +60,97 @@ Shader_Data :: struct
     light_power:      f32,
 }
 
-compile_shader :: proc(filepath: string, kind: u32) -> u32
+parse_shader :: proc(using shader: ^Shader, source: []byte, buff: ^strings.Builder = nil) -> ^strings.Builder
+{
+    using util;
+
+    buff := buff;
+    top_level := false;
+    if buff == nil
+    {
+        top_level = true;
+        buff = new_clone(strings.make_builder());
+    }
+    
+    file := string(source[:]);
+    ident: string;
+    line: string;
+    for len(file) > 0
+    {
+        write := true;
+        read_line(&file, &line);
+        line_orig := line[:];
+        if !top_level && strings.has_prefix(line, "#version")
+        {
+            write = false;
+        }
+        else if read_fmt(&line, "@%s%_", &ident)
+        {
+            write = false;
+            switch ident
+            {
+            case "import":
+                imported: string;
+                if !read_string(&line, &imported)
+                {
+                    fmt.eprintf("ERROR: Could not read filename after @import\n");
+                    os.exit(1);
+                }
+                
+                imp_data, ok := os.read_entire_file(imported);
+                if !ok
+                {
+                    fmt.eprintf("ERROR: Could not open @import'ed file %q\n", imported);
+                    os.exit(1);
+                }
+
+                parse_shader(shader, imp_data, buff);
+                
+            case:
+                fmt.eprintf("ERROR: Invalid attribute '@%s' in shader\n", ident);
+                os.exit(1);
+            }
+        }
+        else if read_fmt(&line, "%s%_", &ident)
+        {
+            switch ident
+            {
+            case "layout":
+                loc := -1;
+                name: string;
+                if !read_fmt(&line, "%_(location%_=%_%d)%_in%_%^s%_%s%_;", &loc, &name)
+                {
+                    fmt.eprintf("ERROR: Couldn't parse shader attribute\n");
+                    os.exit(1);
+                }
+                resize(&attributes, loc+1);
+                attributes[loc] = i32(loc);
+                
+            case "uniform":
+                name: string;
+                if !read_fmt(&line, "%_%^s%_%s%_;", &name)
+                {
+                    fmt.eprintf("ERROR: Couldn't parse shader uniform\n");
+                    os.exit(1);
+                }
+                uniforms[name] = -1;
+            }
+        }
+        
+        if write
+        {
+            strings.write_string(buff, line_orig);
+            strings.write_byte(buff, '\n');
+        }
+            
+    }
+
+    return buff;
+}
+
+compile_shader :: proc(filepath: string, code: []byte, kind: u32) -> u32
 {
     id := gl.CreateShader(kind);
-    code: []byte;
-    ok: bool;
-    
-    if code, ok = os.read_entire_file(filepath); !ok
-    {
-        fmt.eprintf("Failed to open shader '%s'\n", filepath);
-        return 0;
-    }
     
     result := i32(gl.FALSE);
     info_log_length: i32;
@@ -75,7 +158,8 @@ compile_shader :: proc(filepath: string, kind: u32) -> u32
     // Compile
     fmt.printf("Compiling shader: %s\n", filepath);
     source := &code[0];
-    gl.ShaderSource(id, 1, &source, nil);
+    length := i32(len(code));
+    gl.ShaderSource(id, 1, &source, &length);
     gl.CompileShader(id);
 
     // Check
@@ -94,23 +178,35 @@ compile_shader :: proc(filepath: string, kind: u32) -> u32
     return id;
 }
 
-load_shader :: proc(vs_filepath, fs_filepath: string) -> u32
+load_shader :: proc(vs_filepath, fs_filepath: string) -> Shader
 {
     vs_code, fs_code: []byte;
-    if vs_code, ok := os.read_entire_file(vs_filepath); !ok
+    ok: bool;
+    if vs_code, ok = os.read_entire_file(vs_filepath); !ok
     {
         fmt.eprintf("Failed to open vertex shader '%s'\n", vs_filepath);
-        return 0;
+        return {};
     }
-    if fs_code, ok := os.read_entire_file(fs_filepath); !ok
+    if fs_code, ok = os.read_entire_file(fs_filepath); !ok
     {
         fmt.eprintf("Failed to open fragment shader '%s'\n", vs_filepath);
-        return 0;
+        return {};
     }
 
     // Compile
-    vs_id := compile_shader(vs_filepath, gl.VERTEX_SHADER);
-    fs_id := compile_shader(fs_filepath, gl.FRAGMENT_SHADER);
+    shader := Shader{};
+    shader.uniforms = make(map[string]i32);
+    vs_builder := parse_shader(&shader, vs_code);
+    fs_builder := parse_shader(&shader, fs_code);
+    
+    defer
+    {
+        strings.destroy_builder(vs_builder);
+        strings.destroy_builder(fs_builder);
+    }
+    
+    vs_id := compile_shader(vs_filepath, vs_builder.buf[:], gl.VERTEX_SHADER);
+    fs_id := compile_shader(fs_filepath, fs_builder.buf[:], gl.FRAGMENT_SHADER);
 
     // Link
     fmt.println("Linking program");
@@ -132,7 +228,7 @@ load_shader :: proc(vs_filepath, fs_filepath: string) -> u32
         
         gl.GetProgramInfoLog(program_id, info_log_length-1, nil, &err_msg[0]);
         fmt.eprintf("%s\n", err_msg);
-        return 0;
+        return {};
     }
 
     gl.DetachShader(program_id, vs_id);
@@ -140,31 +236,28 @@ load_shader :: proc(vs_filepath, fs_filepath: string) -> u32
 
     gl.DeleteShader(vs_id);
     gl.DeleteShader(fs_id);
+    
+    shader.id = program_id;
 
-    delete(vs_code);
-    delete(fs_code);
-
-    return program_id;
+    return shader;
 }
 
 init_shader :: proc(vs_filepath, fs_filepath: string) -> Shader
 {
-    s := Shader{};
-    s.id = load_shader(vs_filepath, fs_filepath);
+    s := load_shader(vs_filepath, fs_filepath);
     
     s.vs_filepath = strings.clone(vs_filepath);
     s.fs_filepath = strings.clone(fs_filepath);
 
-    uniform_names := reflect.struct_field_names(type_of(s.uniforms));
-    uniforms := transmute([]i32)(mem.Raw_Slice{&s.uniforms, size_of(s.uniforms)/size_of(i32)});
-    for name, i in uniform_names
+
+    for name, _ in s.uniforms
     {
         cstr := strings.clone_to_cstring(name);
         defer delete(cstr);
 
-        uniforms[i] = gl.GetUniformLocation(s.id, cstr);
+        s.uniforms[name] = gl.GetUniformLocation(s.id, cstr);
+        fmt.printf("Uniform %q: %d\n", name, s.uniforms[name]);
     }
-
     vs_time, _ := os.last_write_time_by_name(vs_filepath);
     fs_time, _ := os.last_write_time_by_name(fs_filepath);
 

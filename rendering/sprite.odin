@@ -166,6 +166,10 @@ update_sprite :: proc(s: ^Sprite, dt: f32)
         
 }
 
+render_sprite :: proc(shader: Shader, s: ^Sprite, pos, scale: [2]f32) 
+{
+
+}
 draw_sprite :: proc(shader: Shader, s: ^Sprite, pos, scale: [2]f32)
 {
     key := s.curr_anim.keys[s.key_index];
@@ -203,8 +207,8 @@ draw_sprite :: proc(shader: Shader, s: ^Sprite, pos, scale: [2]f32)
     gl.ActiveTexture(gl.TEXTURE0);
     gl.BindTexture(gl.TEXTURE_2D, s.atlas.diffuse);
 
-    gl.Uniform2i(shader.uniforms.resolution, 1024, 768);
-    gl.Uniform1i(shader.uniforms.diffuse_sampler, 0);
+    gl.Uniform2i(shader.uniforms["resolution"], 1024, 768);
+    gl.Uniform1i(shader.uniforms["diffuse_sampler"], 0);
 
     gl.EnableVertexAttribArray(0);
     gl.BindBuffer(gl.ARRAY_BUFFER, s.vbuff);

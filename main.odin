@@ -229,6 +229,7 @@ main :: proc()
 
     s := render.init_shader("./shader/vert2d.vs", "./shader/frag2d.fs");
     text_shader := render.init_shader("./shader/text.vs", "./shader/text.fs");
+    shader_3d := render.init_shader("./shader/vertex.vs", "./shader/fragment.fs");
     
     gl.ClearColor(0.0, 0.3, 0.4, 0.0);
     // gl.ClearColor(0.55, 0.2, 0.3, 0.0);
@@ -258,7 +259,7 @@ main :: proc()
     gui_ctx.style.font = cast(rawptr)&font;
 
     renderer := render.init_renderer();
-    renderer.shader_data.resolution = {i32(window.width), i32(window.height)};
+    // renderer.shader_data.resolution = {i32(window.width), i32(window.height)};
     
     updated: bool;
     for glfw.get_key(window.handle, glfw.KEY_ESCAPE) != glfw.PRESS &&

@@ -1,4 +1,6 @@
-#version 330 core
+#version 430 core
+
+@import "test.vs"
 
 in vec3 uv;
 
@@ -14,11 +16,8 @@ float median(vec3 texel)
 
 void main()
 {
-	vec2 msdf_unit = px_range / vec2(textureSize(texture_sampler, 0));
 	vec3 s = texture(texture_sampler, uv).rgb;
 	float sig_dist = median(s) - 0.5;
-	// sig_dist *= dot(msdf_unit, 0.5 / fwidth(uv.xy));
-    // float opacity = clamp(sig_dist + 0.5, 0.0, 1.0);
 
     float opacity = clamp(sig_dist/fwidth(sig_dist) + 0.5, 0.0, 1.0);
     
