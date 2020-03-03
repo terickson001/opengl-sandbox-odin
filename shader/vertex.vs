@@ -1,4 +1,4 @@
-#version 330 core
+#version 430 core
 
 layout(location = 0) in vec3 vertex_position;
 layout(location = 1) in vec2 vertex_uv;
@@ -14,6 +14,8 @@ layout(location = 5) in mat4 M;
 out VS_OUT {
     vec2 uv;
     vec3 position_m;
+    vec3 position_mv;
+    
     vec3 normal_mv;
     vec3 eye_direction_mv;
     vec3 light_direction_mv;
@@ -22,8 +24,6 @@ out VS_OUT {
     vec3 light_direction_tbn;
 } vert;
 
-uniform mat4 MVP;
-uniform mat4 VP;
 uniform mat4 V;
 uniform mat4 P;
 uniform vec3 light_position_m;
@@ -34,9 +34,18 @@ out mat4 mvp_mat;
 void main()
 {
     mat4 MV = V*M;
-
+    
     // Position of the vertex, in worldspace
     vert.position_m =  (M * vec4(vertex_position,1)).xyz;
+    
+    // vec3 position_cameraspace = (MV * vec4(vertex_position, 1)).xyz;
+    // vec3 plane_normal = (inverse(V) * vec4(0, 0, 0, 1)).xyz * vec3(1, 0, 1);
+    // plane_normal = normalize((inverse(M) * vec4(plane_normal, 0)).xyz);
+    
+    // vec3 plane_normal = (inverse(V) * vec4(0, 0, -1, 0)).xyz * vec3(1,0,1);
+    // plane_normal = normalize((inverse(M) * vec4(plane_normal, 0)).xyz);
+
+    // vec3 flattened = vertex_position - dot(vertex_position, plane_normal)*plane_normal*0.99;
     
     // Vector from vertex to camera, in camera space
     vec3 vertex_position_mv = (MV * vec4(vertex_position, 1)).xyz;
@@ -50,7 +59,7 @@ void main()
     vert.normal_mv    = MV3x3 * normalize(vertex_normal);
     vec3 tangent_mv   = MV3x3 * normalize(vertex_tangent);
     vec3 bitangent_mv = MV3x3 * normalize(vertex_bitangent);
-    
+
     mat3 TBN = transpose(mat3(
         tangent_mv,
         bitangent_mv,
@@ -65,6 +74,8 @@ void main()
     normal = vertex_normal;
     position = vertex_position;
     mvp_mat = P*MV;
+
     // Position of the vertex, in clip space
-    gl_Position = P*MV * vec4(vertex_position, 1);
+    gl_Position = mvp_mat * vec4(vertex_position, 1);
+    // gl_Position = mvp_mat * vec4(flattened, 1);
 }

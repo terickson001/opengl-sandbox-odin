@@ -212,14 +212,24 @@ read_float :: proc(str: ^string, ret: $T/^$E) -> bool
     if len(str) == 0 do
         return false;
 
-    integer : i64 = 0;
-    ok := read_int(str, &integer);
-    if !ok do return false;
-
-    sign: E = integer < 0 ? -1 : 1;
-    ret^ = E(integer);
-
+    sign := E(1);
     idx := 0;
+    
+    if str[idx] == '-'
+    {
+        sign = -1;
+        idx += 1;
+    }
+
+    for idx < len(str) && '0' <= str[idx] && str[idx] <= '9'
+    {
+        ret^ *= 10;
+        ret^ += E(str[idx] - '0');
+        idx += 1;
+    }
+
+    ret^ *= E(sign);
+
     if idx < len(str) && str[idx] == '.'
     {
         frac: E = 0;

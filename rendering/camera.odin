@@ -47,29 +47,30 @@ update_camera_angle :: proc(win: Window, using cam: ^Camera, dt: f32)
 {
     if detached do return;
 
-    mpos := control.get_mouse_pos();
+    mpos := [2]f64{};
+    mpos.x, mpos.y = glfw.get_cursor_pos(win.handle);
     glfw.set_cursor_pos(win.handle, f64(win.width/2), f64(win.height/2));
 
-    cam.yaw   += cam.rotate_speed  * dt * f32(win.width/2)  - mpos.x;
-    cam.pitch +=  cam.rotate_speed * dt * f32(win.height/2) - mpos.y;
+    yaw   += rotate_speed * dt * (f32(win.width) /2 - f32(mpos.x));
+    pitch += rotate_speed * dt * (f32(win.height)/2 - f32(mpos.y));
 
-    for cam.yaw < 0 do cam.yaw += 2*math.PI;
-    for cam.yaw >= 2*math.PI do cam.yaw -= 2*math.PI;
-    cam.pitch = min(max(cam.pitch, -(math.PI/2)), math.PI/2);
+    for yaw < 0 do yaw += 2*math.PI;
+    for yaw >= 2*math.PI do yaw -= 2*math.PI;
+    pitch = min(max(pitch, -(math.PI/2)), math.PI/2);
 
-    cam.dir = {
-        math.cos(cam.pitch) * math.sin(cam.yaw),
-        math.sin(cam.pitch),
-        math.cos(cam.pitch) * math.cos(cam.yaw)
+    dir = {
+        math.cos(pitch) * math.sin(yaw),
+        math.sin(pitch),
+        math.cos(pitch) * math.cos(yaw)
     };
 
-    cam.right = {
-        -math.cos(cam.yaw),
+    right = {
+        -math.cos(yaw),
         0,
-        math.sin(cam.yaw)
+        math.sin(yaw)
     };
 
-    cam.up = linalg.cross(cam.right, cam.dir);
+    up = linalg.cross(right, dir);
 }
 
 update_camera_position :: proc(win: Window, cam: ^Camera, dt: f32)
@@ -84,14 +85,14 @@ update_camera_position :: proc(win: Window, cam: ^Camera, dt: f32)
     }
     if cam.detached do return;
 
-    if control.key_down('w') do
+    if control.key_down('W') do
         cam.pos += cam.dir * (dt*cam.move_speed);
-    if control.key_down('s') do
+    if control.key_down('S') do
         cam.pos -= cam.dir * (dt*cam.move_speed);
 
-    if control.key_down('d') do
+    if control.key_down('D') do
         cam.pos += cam.right * (dt*cam.move_speed);
-    if control.key_down('a') do
+    if control.key_down('A') do
         cam.pos -= cam.right * (dt*cam.move_speed);
 
     if control.key_down(' ') do

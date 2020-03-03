@@ -17,10 +17,11 @@ Shader :: struct
     vs_filepath: string,
     fs_filepath: string,
 
-    uniforms   : map[string]i32,
-    attributes : [dynamic]i32
+    uniforms : map[string]i32,
+    buffers  : [dynamic]u32
 }
 
+/*
 Uniform :: struct
 {
     name: string,
@@ -40,25 +41,7 @@ Shader_Interface :: struct
     uniforms: map[string]Uniform,
     buffers: map[string]Buffer,
 }
-
-Shader_Data :: struct
-{
-    resolution:       [2]i32,
-
-    M:                [4][4]f32,
-    V:                [4][4]f32,
-    P:                [4][4]f32,
-    MVP:              [4][4]f32,
-    VP:               [4][4]f32,
-
-    diffuse_sampler:  u32,
-    normal_sampler:   u32,
-    specular_sampler: u32,
-
-    light_position_m: [3]f32,
-    light_color:      [3]f32,
-    light_power:      f32,
-}
+*/
 
 parse_shader :: proc(using shader: ^Shader, source: []byte, buff: ^strings.Builder = nil) -> ^strings.Builder
 {
@@ -123,8 +106,8 @@ parse_shader :: proc(using shader: ^Shader, source: []byte, buff: ^strings.Build
                     fmt.eprintf("ERROR: Couldn't parse shader attribute\n");
                     os.exit(1);
                 }
-                resize(&attributes, loc+1);
-                attributes[loc] = i32(loc);
+                if len(buffers) < loc+1 do
+                    resize(&buffers, loc+1);
                 
             case "uniform":
                 name: string;
@@ -196,6 +179,7 @@ load_shader :: proc(vs_filepath, fs_filepath: string) -> Shader
     // Compile
     shader := Shader{};
     shader.uniforms = make(map[string]i32);
+    shader.buffers  = make([dynamic]u32);
     vs_builder := parse_shader(&shader, vs_code);
     fs_builder := parse_shader(&shader, fs_code);
     
@@ -227,7 +211,7 @@ load_shader :: proc(vs_filepath, fs_filepath: string) -> Shader
         defer delete(err_msg);
         
         gl.GetProgramInfoLog(program_id, info_log_length-1, nil, &err_msg[0]);
-        fmt.eprintf("%s\n", err_msg);
+        fmt.eprintf("ERROR: %s\n", string(err_msg));
         return {};
     }
 
@@ -249,15 +233,16 @@ init_shader :: proc(vs_filepath, fs_filepath: string) -> Shader
     s.vs_filepath = strings.clone(vs_filepath);
     s.fs_filepath = strings.clone(fs_filepath);
 
-
     for name, _ in s.uniforms
     {
         cstr := strings.clone_to_cstring(name);
         defer delete(cstr);
 
         s.uniforms[name] = gl.GetUniformLocation(s.id, cstr);
-        fmt.printf("Uniform %q: %d\n", name, s.uniforms[name]);
+        // fmt.printf("Uniform %q: %d\n", name, s.uniforms[name]);
     }
+    // gl.GenBuffers(i32(len(s.buffers)), &s.buffers[0]);
+    
     vs_time, _ := os.last_write_time_by_name(vs_filepath);
     fs_time, _ := os.last_write_time_by_name(fs_filepath);
 

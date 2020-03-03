@@ -159,7 +159,7 @@ image_texture :: proc(filepath: string) -> (u32, Texture_Info)
     return texture_id, {img.width, img.height, gl.TEXTURE_2D};
 }
 
-load_texture :: proc(diff, norm, spec: string) -> Texture
+load_texture :: proc(diff: string, norm := "", spec := "") -> Texture
 {
     t := Texture{};
 

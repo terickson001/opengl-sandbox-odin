@@ -4,6 +4,8 @@ package rendering
 import "core:fmt"
 import "shared:gl"
 import "core:mem"
+import "core:intrinsics"
+import "core:runtime"
 
 MAX_DEPTH :: 32;
 
@@ -15,13 +17,45 @@ Renderer :: struct
     layers      : [MAX_DEPTH][dynamic]Batch,
 }
 
+Render_Proc :: proc(batch: Batch);
+
+Buffer :: struct
+{
+    data      : rawptr,
+    count     : int,
+    elem_size : int,
+    stride    : int,
+    location  : u32,
+    is_attr   : bool,
+}
+make_buffer :: proc(slice: []$T, location: u32, is_attr := true) -> Buffer
+{
+    buff := Buffer{};
+    
+    buff.data      = &slice[0];
+    buff.count     = len(slice);
+    buff.elem_size = size_of(T);
+    buff.location  = location;
+    buff.is_attr   = is_attr;
+    when intrinsics.type_is_array(T) do
+        buff.stride = type_info_of(T).variant.(runtime.Type_Info_Array).count;
+    return buff;
+}
+
+Render_Context :: struct
+{
+    vao: u32,
+    vbos: []u32,
+}
+
 Batch :: struct
 {
     shader      : ^Shader,
     texture     : ^Texture,
-    blending    : bool,
-    render_proc : proc(data: rawptr),
-    render_data : []rawptr,
+    render_proc : Render_Proc,
+    uniforms    : map[string]rawptr,
+    num_vertices: int,
+    data        : [dynamic][]Buffer,
 }
 
 init_renderer :: proc() -> Renderer
@@ -38,91 +72,82 @@ init_renderer :: proc() -> Renderer
 
 begin_render :: proc(using renderer: ^Renderer)
 {
-    /* for _, i in layers */
-    /* { */
-    /*     for _, j in layers[i] */
-    /*     { */
-    /*         delete(layers[i][j].vertices); */
-    /*         delete(layers[i][j].uvs); */
-    /*         delete(layers[i][j].normals); */
-    /*     } */
+    for _, i in layers
+    {
+        for _, j in layers[i] do
+            delete_batch(layers[i][j]);
             
-    /*     resize(&layers[i], 0); */
-    /* } */
+        resize(&layers[i], 0);
+    }
 }
 
-add_batch :: proc(renderer: ^Renderer, layer: int, shader: Shader, tex: Texture, blending: bool, verts: [][$A]f32, uvs: [][$B]f32, norms: [][$C]f32)
+delete_batch :: proc(using batch: Batch)
 {
-    /* batch := Batch{}; */
-    /* batch.shader = shader; */
-    /* batch.texture = tex; */
-    /* batch.blending = blending; */
-    
-    /* batch.vertices = mem.slice_data_cast([]f32, verts); */
-    /* batch.uvs      = mem.slice_data_cast([]f32, uvs); */
-    /* batch.normals  = mem.slice_data_cast([]f32, norms); */
-    
-    /* batch.v_stride  = A; */
-    /* batch.uv_stride = B; */
-    /* batch.n_stride  = C; */
+    /* for buffers in data do */
+    /*     for _, i in buffers do */
+    /*         free(buffers[i].data); */
+    // delete(data);
+    // delete(uniforms);
+}
 
-    /* append(&renderer.layers[layer], batch); */
+add_batch :: proc(using renderer: ^Renderer, layer: int, shader: ^Shader, texture: ^Texture, render_proc: Render_Proc, data: []Buffer)
+{
+    /* for b, i in layers[layer] */
+    /* { */
+    /*     if b.shader == shader */
+    /*         && b.texture == texture */
+    /*         && b.render_proc == render_proc */
+    /*     { */
+    /*         layers[layer][i].num_vertices += data[0].count; */
+    /*         append(&layers[layer][i].data, data); */
+    /*         return; */
+    /*     } */
+    /* } */
+    batch := Batch{};
+    batch.shader = shader;
+    batch.texture = texture;
+    batch.render_proc = render_proc;
+    batch.num_vertices = data[0].count;
+    append(&batch.data, data);
+
+    append(&renderer.layers[layer], batch);
 }
 
 @private
 draw_batch :: proc(using renderer: ^Renderer, using batch: ^Batch)
 {
-    /* if len(vertices) > 0 */
-    /* { */
-    /*     gl.BindBuffer(gl.ARRAY_BUFFER, vbuff); */
-    /*     gl.BufferData(gl.ARRAY_BUFFER, len(vertices)*size_of(f32), &vertices[0], gl.STATIC_DRAW); */
-    /* } */
+    for _, b in batch.data[0]
+    {
+        size := batch.data[0][b].elem_size;
+        location := batch.data[0][b].location;
+        gl.BindBuffer(gl.ARRAY_BUFFER, shader.buffers[location]);
+        gl.BufferData(gl.ARRAY_BUFFER, num_vertices*size, nil, gl.DYNAMIC_DRAW);
+        off := 0;
+        for buffers in batch.data
+        {
+            gl.BufferSubData(gl.ARRAY_BUFFER, off, buffers[b].count*size, buffers[b].data);
+            off += buffers[b].count * size;
+        }
 
-    /* if len(uvs) > 0 */
-    /* { */
-    /*     gl.BindBuffer(gl.ARRAY_BUFFER, uvbuff); */
-    /*     gl.BufferData(gl.ARRAY_BUFFER, len(uvs)*size_of(f32), &uvs[0], gl.STATIC_DRAW); */
-    /* } */
+        if batch.data[0][b].is_attr
+        {
+            gl.EnableVertexAttribArray(u32(location));
+            gl.VertexAttribPointer(u32(location), i32(batch.data[0][b].stride), gl.FLOAT, gl.FALSE, 0, nil);
+        }
+    }
 
-    /* if len(normals) > 0 */
-    /* { */
-    /*     gl.BindBuffer(gl.ARRAY_BUFFER, nbuff); */
-    /*     gl.BufferData(gl.ARRAY_BUFFER, len(normals)*size_of(f32), &normals[0], gl.STATIC_DRAW); */
-    /* } */
-
-    /* gl.UseProgram(shader.id); */
+    gl.UseProgram(shader.id);
     
-    /* gl.ActiveTexture(gl.TEXTURE0); */
-    /* gl.BindTexture(texture.type, texture.diffuse); */
+    gl.ActiveTexture(gl.TEXTURE0);
+    gl.BindTexture(texture.type, texture.diffuse);
 
-    /* gl.Uniform2i(shader.uniforms.resolution, shader_data.resolution.x, shader_data.resolution.y); */
-    /* gl.Uniform1i(shader.uniforms.diffuse_sampler, 0); */
-
-    /* if len(vertices) > 0 */
-    /* { */
-    /*     gl.EnableVertexAttribArray(0); */
-    /*     gl.BindBuffer(gl.ARRAY_BUFFER, vbuff); */
-    /*     gl.VertexAttribPointer(0, i32(v_stride), gl.FLOAT, gl.FALSE, 0, nil); */
-    /* } */
-
-    /* if len(uvs) > 0 */
-    /* { */
-    /*     gl.EnableVertexAttribArray(1); */
-    /*     gl.BindBuffer(gl.ARRAY_BUFFER, uvbuff); */
-    /*     gl.VertexAttribPointer(1, i32(uv_stride), gl.FLOAT, gl.FALSE, 0, nil); */
-    /* } */
-
-    /* if len(normals) > 0 */
-    /* { */
-    /*     gl.EnableVertexAttribArray(2); */
-    /*     gl.BindBuffer(gl.ARRAY_BUFFER, nbuff); */
-    /*     gl.VertexAttribPointer(2, i32(n_stride), gl.FLOAT, gl.FALSE, 0, nil); */
-    /* } */
+    gl.Uniform2i(shader.uniforms["resolution"], 1024, 768);//shader_data.resolution.x, shader_data.resolution.y);
+    gl.Uniform1i(shader.uniforms["diffuse_sampler"], 0);
     
     /* if blending */
     /* { */
-    /*     gl.Enable(gl.BLEND); */
-    /*     gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); */
+        gl.Enable(gl.BLEND);
+        gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     /* } */
 
     /* vertex_count := 0; */
@@ -130,9 +155,17 @@ draw_batch :: proc(using renderer: ^Renderer, using batch: ^Batch)
     /* if len(uvs) > 0 do      vertex_count = max(len(uvs)     /uv_stride); */
     /* if len(normals) > 0 do  vertex_count = max(len(normals) /n_stride); */
     
-    /* gl.DrawArrays(gl.TRIANGLES, 0, i32(vertex_count)); */
+    gl.DrawArrays(gl.TRIANGLES, 0, i32(batch.num_vertices));
 
     /* if blending          do gl.Disable(gl.BLEND); */
+    gl.Disable(gl.BLEND);
+
+    for _, b in batch.data[0]
+    {
+        location := batch.data[0][b].location;
+        if batch.data[0][b].is_attr do
+            gl.DisableVertexAttribArray(location);
+    }
     /* if len(vertices) > 0 do gl.DisableVertexAttribArray(0); */
     /* if len(uvs) > 0      do gl.DisableVertexAttribArray(1); */
     /* if len(normals) > 0  do gl.DisableVertexAttribArray(2); */

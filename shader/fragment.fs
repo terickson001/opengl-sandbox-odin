@@ -1,8 +1,10 @@
-#version 330 core
+#version 430 core
 
 in VS_OUT {
     vec2 uv;
     vec3 position_m;
+    vec3 position_mv;
+
     vec3 normal_mv;
     vec3 eye_direction_mv;
     vec3 light_direction_mv;
@@ -24,7 +26,11 @@ uniform vec3 light_position_m;
 const float specularity = 1;
 void main()
 {
-    vec3 material_diffuse_color = texture(diffuse_sampler, frag.uv).rgb;
+    float pixels = 128.0;
+    float d = 15 * (1/pixels);
+    vec2 pix_uv = d * floor(frag.uv/d);
+    
+    vec3 material_diffuse_color = texture(diffuse_sampler, pix_uv).rgb;
     vec3 material_ambient_color = 0.3f * material_diffuse_color;
     vec3 material_specular_color = texture(specular_sampler, frag.uv).rgb * specularity;
 
@@ -45,4 +51,7 @@ void main()
         material_diffuse_color * light_color * light_power * cos_theta / (dist*dist) +
         // Specular : reflective highlight, like a mirror
         material_specular_color * light_color * light_power * pow(cos_alpha, 5) / (dist*dist);
+    // color = vec3(1, 0, 0);
+
+    // gl_FragDepth = frag.position_m.z;
 }

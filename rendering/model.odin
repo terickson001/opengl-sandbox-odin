@@ -86,6 +86,7 @@ load_obj :: proc(filepath : string) -> Mesh
         {
             norm := [3]f32{};
             util.read_fmt(&file, "%f %f %f%>", &norm.x, &norm.y, &norm.z);
+
             append(&temp_norms, norm);
         }
         else if header == "vt"
@@ -98,13 +99,13 @@ load_obj :: proc(filepath : string) -> Mesh
         {
             vi, ni, uvi : [3]u16;
             util.read_fmt(&file, "%d/%d/%d %d/%d/%d %d/%d/%d%>",
-                     &vi[0], &uvi[0], &ni[0],
-                     &vi[1], &uvi[1], &ni[1],
-                     &vi[2], &uvi[2], &ni[2]
-                    );
-            append_elems(&vert_indices, ..vi[:]);
-            append_elems(&norm_indices, ..ni[:]);
-            append_elems(&uv_indices,   ..uvi[:]);
+                           &vi[0], &uvi[0], &ni[0],
+                           &vi[1], &uvi[1], &ni[1],
+                           &vi[2], &uvi[2], &ni[2]
+                          );
+            append(&vert_indices, ..vi[:]);
+            append(&norm_indices, ..ni[:]);
+            append(&uv_indices,   ..uvi[:]);
         }
         else if header == "s" || header == "usemtl"
         {
@@ -127,10 +128,12 @@ load_obj :: proc(filepath : string) -> Mesh
     delete(norm_indices);
     delete(uv_indices);
 
+    fmt.printf("#Vertices = %d\n", len(m.vertices));
+    
     return m;
 }
 
-is_near :: proc(v1: f32, v2: f32) -> bool
+is_near :: inline proc(v1: f32, v2: f32) -> bool
 {
     return abs(v1-v2) < 0.01;
 }
@@ -290,25 +293,45 @@ compute_tangent_basis :: proc(m: ^Mesh)
 
 create_mesh_vbos :: proc(m: ^Mesh)
 {
+    gl.GenVertexArrays(1, &m.vao);
+    gl.BindVertexArray(m.vao);
+
+    gl.EnableVertexAttribArray(0);
     gl.GenBuffers(1, &m.vbuff);
     gl.BindBuffer(gl.ARRAY_BUFFER, m.vbuff);
     gl.BufferData(gl.ARRAY_BUFFER, len(m.vertices)*size_of([3]f32), &m.vertices[0], gl.STATIC_DRAW);
-
+    gl.VertexAttribPointer(
+        0,        // attribute 0
+        3,        // size
+        gl.FLOAT, // type
+        gl.FALSE, // normalized?
+        0,        // stride
+        nil       // array buffer offset
+    );
+    
+    gl.EnableVertexAttribArray(1);
     gl.GenBuffers(1, &m.uvbuff);
     gl.BindBuffer(gl.ARRAY_BUFFER, m.uvbuff);
     gl.BufferData(gl.ARRAY_BUFFER, len(m.uvs)*size_of([2]f32), &m.uvs[0], gl.STATIC_DRAW);
-
+    gl.VertexAttribPointer(1, 2, gl.FLOAT, gl.FALSE, 0, nil);
+    
+    gl.EnableVertexAttribArray(2);
     gl.GenBuffers(1, &m.nbuff);
     gl.BindBuffer(gl.ARRAY_BUFFER, m.nbuff);
     gl.BufferData(gl.ARRAY_BUFFER, len(m.normals)*size_of([3]f32), &m.normals[0], gl.STATIC_DRAW);
-
+    gl.VertexAttribPointer(2, 3, gl.FLOAT, gl.FALSE, 0, nil);
+    
+    gl.EnableVertexAttribArray(3);
     gl.GenBuffers(1, &m.tbuff);
     gl.BindBuffer(gl.ARRAY_BUFFER, m.tbuff);
     gl.BufferData(gl.ARRAY_BUFFER, len(m.tangents)*size_of([3]f32), &m.tangents[0], gl.STATIC_DRAW);
+    gl.VertexAttribPointer(3, 3, gl.FLOAT, gl.FALSE, 0, nil);
 
+    gl.EnableVertexAttribArray(4);
     gl.GenBuffers(1, &m.btbuff);
     gl.BindBuffer(gl.ARRAY_BUFFER, m.btbuff);
     gl.BufferData(gl.ARRAY_BUFFER, len(m.bitangents)*size_of([3]f32), &m.bitangents[0], gl.STATIC_DRAW);
+    gl.VertexAttribPointer(4, 3, gl.FLOAT, gl.FALSE, 0, nil);
 
     if m.indexed
     {
@@ -336,49 +359,12 @@ make_mesh :: proc(filepath: string, normals: bool, invert_uv: bool) -> Mesh
 
 draw_model :: proc(s: Shader, m: Mesh)
 {
-    gl.EnableVertexAttribArray(0);
-    gl.BindBuffer(gl.ARRAY_BUFFER, m.vbuff);
-
-    gl.VertexAttribPointer(
-        0,        // attribute 0
-        3,        // size
-        gl.FLOAT, // type
-        gl.FALSE, // normalized?
-        0,        // stride
-        nil       // array buffer offset
-    );
-
-    gl.EnableVertexAttribArray(1);
-    gl.BindBuffer(gl.ARRAY_BUFFER, m.uvbuff);
-    gl.VertexAttribPointer(1, 2, gl.FLOAT, gl.FALSE, 0, nil);
-
-    gl.EnableVertexAttribArray(2);
-    gl.BindBuffer(gl.ARRAY_BUFFER, m.nbuff);
-    gl.VertexAttribPointer(2, 3, gl.FLOAT, gl.FALSE, 0, nil);
+    gl.BindVertexArray(m.vao);
     
-    gl.EnableVertexAttribArray(3);
-    gl.BindBuffer(gl.ARRAY_BUFFER, m.tbuff);
-    gl.VertexAttribPointer(3, 3, gl.FLOAT, gl.FALSE, 0, nil);
-
-    gl.EnableVertexAttribArray(4);
-    gl.BindBuffer(gl.ARRAY_BUFFER, m.btbuff);
-    gl.VertexAttribPointer(4, 3, gl.FLOAT, gl.FALSE, 0, nil);
-
-    if m.indexed
-    {
-        gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, m.ebuff);
+    if m.indexed do
         gl.DrawElements(gl.TRIANGLES, i32(len(m.indices)), gl.UNSIGNED_SHORT, nil);
-    }
-    else
-    {
+    else do
         gl.DrawArrays(gl.TRIANGLES, 0, i32(len(m.vertices)));
-    }
-
-    gl.DisableVertexAttribArray(0); // vbuff
-    gl.DisableVertexAttribArray(1); // uvbuff
-    gl.DisableVertexAttribArray(2); // nbuff
-    gl.DisableVertexAttribArray(3); // tbuff
-    gl.DisableVertexAttribArray(4); // btbuff
 }
 
 delete_model :: proc (m: ^Mesh)
