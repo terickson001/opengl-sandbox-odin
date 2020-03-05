@@ -5,7 +5,7 @@ import "shared:gl"
 import "core:os"
 import "core:strings"
 import "core:mem"
-import "core:reflect"
+import "core:intrinsics"
 
 import "../util"
 
@@ -21,8 +21,52 @@ Shader :: struct
     buffers  : [dynamic]u32
 }
 
+set_uniform :: proc(using s: ^Shader, name: string, val: $T)
+{
+    location, found := uniforms[name];
+    if !found
+    {
+        fmt.eprintf("ERROR: Shader does not have uniform %q\n", name);
+        os.exit(1);
+    }
+
+    E :: intrinsics.type_elem_type(T);
+    N :: size_of(T) / size_of(E);
+    when intrinsics.type_is_integer(E)
+    {
+        when intrinsics.type_is_unsigned(E)
+        {
+            when      N == 1 do gl.Uniform1ui(location, u32(val));
+            else when N == 2 do gl.Uniform2ui(location, u32(val[0]), u32(val[1]));            
+            else when N == 3 do gl.Uniform3ui(location, u32(val[0]), u32(val[1]), u32(val[2]));
+            else when N == 4 do gl.Uniform4ui(location, u32(val[0]), u32(val[1]), u32(val[2]), u32(val[3]));
+        }
+        else
+        {
+            when      N == 1 do gl.Uniform1i(location, i32(val));
+            else when N == 2 do gl.Uniform2i(location, i32(val[0]), i32(val[1]));            
+            else when N == 3 do gl.Uniform3i(location, i32(val[0]), i32(val[1]), i32(val[2]));      
+            else when N == 4 do gl.Uniform4i(location, i32(val[0]), i32(val[1]), i32(val[2]), i32(val[3]));
+            
+        }
+    }
+    else when intrinsics.type_is_float(E)
+    {
+        when      N == 1 do gl.Uniform1f(location, f32(val));
+        else when N == 2 do gl.Uniform2f(location, f32(val[0]), f32(val[1]));            
+        else when N == 3 do gl.Uniform3f(location, f32(val[0]), f32(val[1]), f32(val[2]));      
+        else when N == 4 do gl.Uniform4f(location, f32(val[0]), f32(val[1]), f32(val[2]), f32(val[3]));
+    }
+    else when intrinsics.type_is_array(E)
+    {
+        when      N == 2 { temp := val; gl.UniformMatrix2fv(location, 1, gl.FALSE, &temp[0][0]); }
+        else when N == 3 { temp := val; gl.UniformMatrix3fv(location, 1, gl.FALSE, &temp[0][0]); }
+        else when N == 4 { temp := val; gl.UniformMatrix4fv(location, 1, gl.FALSE, &temp[0][0]); }
+    }
+}
+
 /*
-Uniform :: struct
+uniform :: struct
 {
     name: string,
     location: i32,

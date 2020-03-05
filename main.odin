@@ -91,11 +91,12 @@ draw_rect :: proc(s: ^render.Shader, ctx: ^render.Context, rect: gui.Rect, layer
     uvs[5] = {c_uv.x + uv_size, c_uv.y + uv_size};
 
     gl.UseProgram(s.id);
+
     
     render.bind_context(ctx);
     render.update_vbo(ctx, 0, vertices[:]);
     render.update_vbo(ctx, 1, uvs[:]);
-
+    
     gl.ActiveTexture(gl.TEXTURE0);
     gl.BindTexture(gl.TEXTURE_2D, gui_palette.diffuse);
     

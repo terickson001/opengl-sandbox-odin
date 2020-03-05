@@ -200,8 +200,10 @@ draw_sprite :: proc(shader: ^Shader, s: ^Sprite, pos, scale: [2]f32)
     gl.ActiveTexture(gl.TEXTURE0);
     gl.BindTexture(gl.TEXTURE_2D, s.atlas.diffuse);
 
-    gl.Uniform2i(shader.uniforms["resolution"], 1024, 768);
-    gl.Uniform1i(shader.uniforms["diffuse_sampler"], 0);
+    set_uniform(shader, "resolution", [2]int{1024, 768});
+    set_uniform(shader, "diffuse_sampler", 0);
+    /* gl.Uniform2i(shader.uniforms["resolution"], 1024, 768); */
+    /* gl.Uniform1i(shader.uniforms["diffuse_sampler"], 0); */
 
     gl.Enable(gl.BLEND);
     gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
