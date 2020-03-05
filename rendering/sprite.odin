@@ -37,6 +37,15 @@ Sprite :: struct
     uvbuff     : u32,
 }
 
+Sprite_Buffers :: struct
+{
+    vao      : u32,
+    vbuff    : u32,
+    uvbuff   : u32,
+    vertices : [dynamic][2]f32,
+    uvs      : [dynamic][2]f32,
+}
+
 load_sprite :: proc(filepath: string) -> (s: Sprite)
 {
     filebuf, ok := os.read_entire_file(filepath);

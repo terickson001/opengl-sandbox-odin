@@ -6,7 +6,6 @@ import "core:strings"
 
 import "shared:gl"
 import "shared:image"
-import glf "shared:gl_font"
 
 import "../util"
 
@@ -30,11 +29,20 @@ Field_Info :: struct
 
 Font :: struct
 {
-    vbuff: u32,
-    uvbuff: u32,
-    texture: Texture,
+    vbuff   : u32,
+    uvbuff  : u32,
+    texture : Texture,
     
-    info: Field_Info,
+    info    : Field_Info,
+}
+
+Text_Buffers :: struct
+{
+    vao      : u32,
+    vbuff    : u32,
+    uvbuff   : u32,
+    vertices : [dynamic][2]f32,
+    uvs      : [dynamic][3]f32,
 }
 
 load_msdf_metrics :: proc(filepath: string) -> (info: Field_Info)

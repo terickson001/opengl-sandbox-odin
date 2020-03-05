@@ -21,14 +21,8 @@ Mesh :: struct
     indexed    : bool,
     indices    : [dynamic]u16,
 
-    vao        : u32,
 
-    vbuff      : u32,
-    uvbuff     : u32,
-    nbuff      : u32,
-    tbuff      : u32,
-    btbuff     : u32,
-    ebuff      : u32,
+    using ctx: Context,
 }
 
 init_mesh :: proc() -> Mesh
@@ -291,54 +285,65 @@ compute_tangent_basis :: proc(m: ^Mesh)
     }
 }
 
-create_mesh_vbos :: proc(m: ^Mesh)
+create_mesh_vbos :: proc(using m: ^Mesh)
 {
-    gl.GenVertexArrays(1, &m.vao);
-    gl.BindVertexArray(m.vao);
+    ctx = make_context(5, 0, indexed);
 
-    gl.EnableVertexAttribArray(0);
-    gl.GenBuffers(1, &m.vbuff);
-    gl.BindBuffer(gl.ARRAY_BUFFER, m.vbuff);
-    gl.BufferData(gl.ARRAY_BUFFER, len(m.vertices)*size_of([3]f32), &m.vertices[0], gl.STATIC_DRAW);
-    gl.VertexAttribPointer(
-        0,        // attribute 0
-        3,        // size
-        gl.FLOAT, // type
-        gl.FALSE, // normalized?
-        0,        // stride
-        nil       // array buffer offset
-    );
+    bind_context(ctx);
     
-    gl.EnableVertexAttribArray(1);
-    gl.GenBuffers(1, &m.uvbuff);
-    gl.BindBuffer(gl.ARRAY_BUFFER, m.uvbuff);
-    gl.BufferData(gl.ARRAY_BUFFER, len(m.uvs)*size_of([2]f32), &m.uvs[0], gl.STATIC_DRAW);
-    gl.VertexAttribPointer(1, 2, gl.FLOAT, gl.FALSE, 0, nil);
-    
-    gl.EnableVertexAttribArray(2);
-    gl.GenBuffers(1, &m.nbuff);
-    gl.BindBuffer(gl.ARRAY_BUFFER, m.nbuff);
-    gl.BufferData(gl.ARRAY_BUFFER, len(m.normals)*size_of([3]f32), &m.normals[0], gl.STATIC_DRAW);
-    gl.VertexAttribPointer(2, 3, gl.FLOAT, gl.FALSE, 0, nil);
-    
-    gl.EnableVertexAttribArray(3);
-    gl.GenBuffers(1, &m.tbuff);
-    gl.BindBuffer(gl.ARRAY_BUFFER, m.tbuff);
-    gl.BufferData(gl.ARRAY_BUFFER, len(m.tangents)*size_of([3]f32), &m.tangents[0], gl.STATIC_DRAW);
-    gl.VertexAttribPointer(3, 3, gl.FLOAT, gl.FALSE, 0, nil);
+    update_vbo(ctx, 0, vertices[:]);
+    update_vbo(ctx, 1, uvs[:]);
+    update_vbo(ctx, 2, normals[:]);
+    update_vbo(ctx, 3, tangents[:]);
+    update_vbo(ctx, 4, bitangents[:]);
 
-    gl.EnableVertexAttribArray(4);
-    gl.GenBuffers(1, &m.btbuff);
-    gl.BindBuffer(gl.ARRAY_BUFFER, m.btbuff);
-    gl.BufferData(gl.ARRAY_BUFFER, len(m.bitangents)*size_of([3]f32), &m.bitangents[0], gl.STATIC_DRAW);
-    gl.VertexAttribPointer(4, 3, gl.FLOAT, gl.FALSE, 0, nil);
+    if indexed do
+        update_ebo(ctx, indices[:]);
+    
+    /* gl.BindVertexArray(m.vao); */
 
-    if m.indexed
-    {
-        gl.GenBuffers(1, &m.ebuff);
-        gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, m.ebuff);
-        gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, len(m.indices)*size_of(u16), &m.indices[0], gl.STATIC_DRAW);
-    }
+    /* gl.EnableVertexAttribArray(0); */
+    /* gl.BindBuffer(gl.ARRAY_BUFFER, m.vbuff); */
+    /* gl.BufferData(gl.ARRAY_BUFFER, len(m.vertices)*size_of([3]f32), &m.vertices[0], gl.STATIC_DRAW); */
+    /* gl.VertexAttribPointer( */
+    /*     0,        // attribute 0 */
+    /*     3,        // size */
+    /*     gl.FLOAT, // type */
+    /*     gl.FALSE, // normalized? */
+    /*     0,        // stride */
+    /*     nil       // array buffer offset */
+    /* ); */
+    
+    /* gl.EnableVertexAttribArray(1); */
+    /* gl.GenBuffers(1, &m.uvbuff); */
+    /* gl.BindBuffer(gl.ARRAY_BUFFER, m.uvbuff); */
+    /* gl.BufferData(gl.ARRAY_BUFFER, len(m.uvs)*size_of([2]f32), &m.uvs[0], gl.STATIC_DRAW); */
+    /* gl.VertexAttribPointer(1, 2, gl.FLOAT, gl.FALSE, 0, nil); */
+    
+    /* gl.EnableVertexAttribArray(2); */
+    /* gl.GenBuffers(1, &m.nbuff); */
+    /* gl.BindBuffer(gl.ARRAY_BUFFER, m.nbuff); */
+    /* gl.BufferData(gl.ARRAY_BUFFER, len(m.normals)*size_of([3]f32), &m.normals[0], gl.STATIC_DRAW); */
+    /* gl.VertexAttribPointer(2, 3, gl.FLOAT, gl.FALSE, 0, nil); */
+    
+    /* gl.EnableVertexAttribArray(3); */
+    /* gl.GenBuffers(1, &m.tbuff); */
+    /* gl.BindBuffer(gl.ARRAY_BUFFER, m.tbuff); */
+    /* gl.BufferData(gl.ARRAY_BUFFER, len(m.tangents)*size_of([3]f32), &m.tangents[0], gl.STATIC_DRAW); */
+    /* gl.VertexAttribPointer(3, 3, gl.FLOAT, gl.FALSE, 0, nil); */
+
+    /* gl.EnableVertexAttribArray(4); */
+    /* gl.GenBuffers(1, &m.btbuff); */
+    /* gl.BindBuffer(gl.ARRAY_BUFFER, m.btbuff); */
+    /* gl.BufferData(gl.ARRAY_BUFFER, len(m.bitangents)*size_of([3]f32), &m.bitangents[0], gl.STATIC_DRAW); */
+    /* gl.VertexAttribPointer(4, 3, gl.FLOAT, gl.FALSE, 0, nil); */
+
+    /* if m.indexed */
+    /* { */
+    /*     gl.GenBuffers(1, &m.ebuff); */
+    /*     gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, m.ebuff); */
+    /*     gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, len(m.indices)*size_of(u16), &m.indices[0], gl.STATIC_DRAW); */
+    /* } */
 }
 
 invert_uvs :: proc(m: ^Mesh)
@@ -359,7 +364,7 @@ make_mesh :: proc(filepath: string, normals: bool, invert_uv: bool) -> Mesh
 
 draw_model :: proc(s: Shader, m: Mesh)
 {
-    gl.BindVertexArray(m.vao);
+    bind_context(m.ctx);
     
     if m.indexed do
         gl.DrawElements(gl.TRIANGLES, i32(len(m.indices)), gl.UNSIGNED_SHORT, nil);
@@ -369,6 +374,8 @@ draw_model :: proc(s: Shader, m: Mesh)
 
 delete_model :: proc (m: ^Mesh)
 {
+    delete_context(m.ctx);
+    
     delete(m.vertices);
     delete(m.uvs);
     delete(m.normals);
