@@ -55,19 +55,20 @@ init_gui :: proc(win: render.Window) -> gui.Context
     display.height = f32(win.height);
     return ctx;
 }
-/*
-draw_text :: proc(s: ^render.Shader, pos: [2]f32, font: render.Font, text: string, size: f32, layer: int, color_id: gui.Color_ID)
+
+
+draw_text :: proc(s: ^render.Shader, pos: [2]f32, font: ^render.Font, text: string, size: f32, layer: int, color_id: gui.Color_ID) 
 {
-    render.draw_text(s^, font, text, 768-pos.y-size, int(size));
+    render.draw_text(s, font, text, {pos.x, 768-pos.y-size}, int(size));
 }
-*/
-@static gui_palette: render.Texture;/*
-draw_rect :: proc(s: ^render.Shader, buffers: ^Sprite_Buffers, rect: gui.Rect, layer: int, color_id: gui.Color_ID)
+
+@static gui_palette: render.Texture;
+draw_rect :: proc(s: ^render.Shader, ctx: ^render.Context, rect: gui.Rect, layer: int, color_id: gui.Color_ID)
 {
     using rect := rect;
-    
-    vertices := make([][2]f32, 6);
-    uvs      := make([][2]f32, 6);
+
+    vertices := [6][2]f32{};
+    uvs      := [6][2]f32{};
 
     y = 768 - y - h;
 
@@ -79,7 +80,7 @@ draw_rect :: proc(s: ^render.Shader, buffers: ^Sprite_Buffers, rect: gui.Rect, l
     vertices[4] = {x+w, y};
     vertices[5] = {x+w, y+h};
 
-    c_uv := render.texture_palette_index(gui_palette, int(color_id));
+    c_uv := render.texture_palette_index(&gui_palette, int(color_id));
     uv_size := 1/f32(gui_palette.info.width);
     uvs[0] = c_uv;
     uvs[1] = {c_uv.x + uv_size, c_uv.y + uv_size};
@@ -89,31 +90,21 @@ draw_rect :: proc(s: ^render.Shader, buffers: ^Sprite_Buffers, rect: gui.Rect, l
     uvs[4] = {c_uv.x + uv_size, c_uv.y};
     uvs[5] = {c_uv.x + uv_size, c_uv.y + uv_size};
 
-    append(&buffers.vertices, ..vertices);
-    append(&buffers.uvs, ..uvs);
-
-    gl.BindVertexArraY(buffers.vao);
+    gl.UseProgram(s.id);
     
-    gl.EnableVertexAttribArray(0);
-    gl.BindBuffer(gl.ARRAY_BUFFER, buffers.vbuff);
-    gl.BufferData(gl.ARRAY_BUFFER, len(vertices)*sizeof([2]f32), &buffers.vertices[0], gl.STATIC_DRAW);
-    gl.VertexAttribPointer(0, 2, gl.FLOAT, gl.FALSE, 0, nil);
+    render.bind_context(ctx);
+    render.update_vbo(ctx, 0, vertices[:]);
+    render.update_vbo(ctx, 1, uvs[:]);
 
-    gl.EnableVertexAttribArray(1);
-    gl.BindBuffer(gl.ARRAY_BUFFER, buffers.uvbuff);
-    gl.BufferData(gl.ARRAY_BUFFER, len(vertices)*sizeof([2]f32), &buffers.uvs[0], gl.STATIC_DRAW);
-    gl.VertexAttribPointer(1, 2, gl.FLOAT, gl.FALSE, 0, nil);
-
+    gl.ActiveTexture(gl.TEXTURE0);
+    gl.BindTexture(gl.TEXTURE_2D, gui_palette.diffuse);
+    
     gl.DrawArrays(gl.TRIANGLES, 0, 6);
-
-    /* vbuff  := render.make_buffer(vertices, 0); */
-    /* uvbuff := render.make_buffer(uvs, 1); */
-    /* render.add_batch(r, layer, s, &gui_palette, nil, {vbuff, vbuff}); */
 }
 
-*/@static gui_win: gui.Window;
+@static gui_win: gui.Window;
 @static value: f32 = 50;
-@static text_buf := gui.Text_Buffer{};/*
+@static text_buf := gui.Text_Buffer{};
 do_gui :: proc(ctx: ^gui.Context, win: render.Window, dt: f64)
 {
     ctx.ctrl.mouse = {control.mouse_down(0), control.mouse_down(1), control.mouse_down(2)};
@@ -150,7 +141,7 @@ do_gui :: proc(ctx: ^gui.Context, win: render.Window, dt: f64)
     gui.end(ctx);
 }
 
-draw_gui :: proc(ctx: ^gui.Context, sgen, stext: ^render.Shader, font: render.Font)
+draw_gui :: proc(ctx: ^gui.Context, sgen, stext: ^render.Shader, render_ctx: ^render.Context, font: ^render.Font)
 {
     draw: gui.Draw;
     for gui.next_draw(ctx, &draw)
@@ -158,14 +149,14 @@ draw_gui :: proc(ctx: ^gui.Context, sgen, stext: ^render.Shader, font: render.Fo
         #partial switch d in draw.variant
         {
         case gui.Draw_Rect:
-            draw_rect(sgen, sbuffers, d.rect, draw.layer, d.color_id);
+            draw_rect(sgen, render_ctx, d.rect, draw.layer, d.color_id);
             
         case gui.Draw_Text:
             draw_text(stext, d.pos, font, d.text, d.size, draw.layer, d.color_id);
         }
     }
 }
-*/
+
 main :: proc()
 {
     init_glfw();
@@ -203,6 +194,7 @@ main :: proc()
     render.create_mesh_vbos(&suzanne_m);
     suzanne_t := render.load_texture("./res/grass.png");
     suzanne := render.make_entity(&suzanne_m, &suzanne_t, {0, 0, 0}, {0, 0, -1});
+    suzanne_2 := render.make_entity(&suzanne_m, &suzanne_t, {0, 2, 0}, {0, 0, -1});
     
     s := render.init_shader("./shader/vert2d.vs", "./shader/frag2d.fs");
     text_shader := render.init_shader("./shader/text.vs", "./shader/text.fs");
@@ -212,9 +204,9 @@ main :: proc()
     gl.ClearColor(0.0, 0.3, 0.4, 0.0);
     // gl.ClearColor(0.55, 0.2, 0.3, 0.0);
 
-    /* sprite := render.load_sprite("./res/adventurer.sprite"); */
-    /* render.sprite_set_anim(&sprite, "running"); */
-    /* adventurer := render.make_entity_2d(&sprite, [2]f32{512-160, 384-160}, [2]f32{10,10}); */
+    sprite := render.load_sprite("./res/adventurer.sprite");
+    render.sprite_set_anim(&sprite, "running");
+    adventurer := render.make_entity_2d(&sprite, [2]f32{512-160, 384-160}, [2]f32{10,10});
 
     font := render.load_font("./res/font/OpenSans-Regular");
     test_str := "Hello, World!";
@@ -250,9 +242,8 @@ main :: proc()
     gui_palette = render.texture_palette(gui_ctx.style.colors[:], false);
     gui_ctx.style.font = cast(rawptr)&font;
 
-    // renderer := render.init_renderer();
-    // renderer.shader_data.resolution = {i32(window.width), i32(window.height)};
-    
+    gui_render_ctx := render.make_context(2, 0);
+
     updated: bool;
     for glfw.get_key(window.handle, glfw.KEY_ESCAPE) != glfw.PRESS &&
         !glfw.window_should_close(window.handle)
@@ -272,8 +263,8 @@ main :: proc()
             }
 
             render.update_camera(window, &camera, time_step);
-            // do_gui(&gui_ctx, window, f64(time_step));
-            /* render.update_entity_2d(&adventurer, time_step); */
+            do_gui(&gui_ctx, window, f64(time_step));
+            render.update_entity_2d(&adventurer, time_step);
             
             /*
             size := adventurer.sprite.dim * adventurer.scale;
@@ -301,27 +292,27 @@ main :: proc()
             gl.Uniform3f(shader.uniforms["light_color"], light_col[0], light_col[1], light_col[2]);
             gl.Uniform1f(shader.uniforms["light_power"], light_pow);
 
-            render.draw_entity(shader, suzanne);
+            render.draw_entity(&shader, suzanne);
+            render.draw_entity(&shader, suzanne_2);
             
-            // render.draw_entity_2d(s, &adventurer);
+            render.draw_entity_2d(&s, &adventurer);
            
             gl.Disable(gl.DEPTH_TEST);
             gl.DepthMask(gl.FALSE);
-
-            fps_w := render.get_text_width(font, string(fps_str[:]), 24);
-            /* render.draw_text(text_shader, font, string(fps_str[:]), */
-            /*                  {f32(window.width)-fps_w, f32(window.height-24)}, */
-            /*                  24); */
-
-            
-            
-            /* render.begin_render(&renderer); */
-            // draw_gui(&gui_ctx, &s, &text_shader, font);
-            
-            /* render.draw_all(&renderer); */
+            gl.Enable(gl.BLEND);
+            gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+            {
+                fps_w := render.get_text_width(font, string(fps_str[:]), 24);
+                render.draw_text(&text_shader, &font, string(fps_str[:]),
+                                 {f32(window.width)-fps_w, f32(window.height-24)},
+                                 24);
+                
+                draw_gui(&gui_ctx, &s, &text_shader, &gui_render_ctx, &font);
+            }
+            gl.Disable(gl.BLEND);
             gl.Enable(gl.DEPTH_TEST);
             gl.DepthMask(gl.TRUE);
-            
+
             glfw.swap_buffers(window.handle);
         }
         

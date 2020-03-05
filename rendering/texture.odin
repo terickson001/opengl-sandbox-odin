@@ -89,7 +89,7 @@ texture_palette :: proc(colors: [][4]f32, normalize: b32) -> Texture
     return t;
 }
 
-texture_palette_index :: proc(palette: Texture, i: int) -> [2]f32
+texture_palette_index :: proc(palette: ^Texture, i: int) -> [2]f32
 {
     s := int(palette.info.width);
     coord := [2]f32{f32(i%s), f32(i/s)};
@@ -173,7 +173,7 @@ load_texture :: proc(diff: string, norm := "", spec := "") -> Texture
     return t;
 }
 
-activate_texture :: proc(s: Shader, t: Texture)
+activate_texture :: proc(s: ^Shader, t: ^Texture)
 {
     gl.ActiveTexture(gl.TEXTURE0);
     gl.BindTexture(gl.TEXTURE_2D, t.diffuse);
@@ -188,7 +188,7 @@ activate_texture :: proc(s: Shader, t: Texture)
     gl.Uniform1i(s.uniforms["specular_sampler"], 2);
 }
 
-disable_texture :: proc(s: Shader, t: Texture)
+disable_texture :: proc(s: ^Shader, t: ^Texture)
 {
     gl.ActiveTexture(gl.TEXTURE0);
     gl.BindTexture(gl.TEXTURE_2D, 0);

@@ -29,20 +29,9 @@ Field_Info :: struct
 
 Font :: struct
 {
-    vbuff   : u32,
-    uvbuff  : u32,
     texture : Texture,
-    
+    ctx     : Context,
     info    : Field_Info,
-}
-
-Text_Buffers :: struct
-{
-    vao      : u32,
-    vbuff    : u32,
-    uvbuff   : u32,
-    vertices : [dynamic][2]f32,
-    uvs      : [dynamic][3]f32,
 }
 
 load_msdf_metrics :: proc(filepath: string) -> (info: Field_Info)
@@ -121,9 +110,8 @@ load_font :: proc(name: string) -> (font: Font)
 
     gl.TexParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
 
-    gl.GenBuffers(1, &font.vbuff);
-    gl.GenBuffers(1, &font.uvbuff);
-
+    font.ctx = make_context(2, 0);
+    
     filepath := fmt.tprintf("%s_msdfmetrics", name);
     font.info = load_msdf_metrics(filepath);
     font.texture.info.type = gl.TEXTURE_2D_ARRAY;
@@ -151,7 +139,7 @@ get_text_width :: proc(font: Font, text: string, size: int) -> (width: f32)
     return width;
 }
 
-draw_text :: proc(s: Shader, font: Font, text: string, pos: [2]f32, size: int)
+draw_text :: proc(s: ^Shader, font: ^Font, text: string, pos: [2]f32, size: int)
 {    
     if len(text) == 0 do
         return;
@@ -208,32 +196,18 @@ draw_text :: proc(s: Shader, font: Font, text: string, pos: [2]f32, size: int)
         pos.x += metrics.advance * scale;
     }
 
-    gl.BindBuffer(gl.ARRAY_BUFFER, font.vbuff);
-    gl.BufferData(gl.ARRAY_BUFFER, len(vertices)*size_of([2]f32), &vertices[0], gl.STATIC_DRAW);
-
-    gl.BindBuffer(gl.ARRAY_BUFFER, font.uvbuff);
-    gl.BufferData(gl.ARRAY_BUFFER, len(uvs)*size_of([3]f32), &uvs[0], gl.STATIC_DRAW);
-
     gl.UseProgram(s.id);
 
+    bind_context(&font.ctx);
+    update_vbo(&font.ctx, 0, vertices[:]);
+    update_vbo(&font.ctx, 1, uvs[:]);
+
     gl.Uniform2i(s.uniforms["resolution"], 1024, 768);
-    gl.Uniform1f(s.uniforms["px_range"], 5);
 
     gl.ActiveTexture(gl.TEXTURE0);
     gl.BindTexture(gl.TEXTURE_2D_ARRAY, font.texture.diffuse);
 
-    gl.EnableVertexAttribArray(0);
-    gl.BindBuffer(gl.ARRAY_BUFFER, font.vbuff);
-    gl.VertexAttribPointer(0, 2, gl.FLOAT, gl.FALSE, 0, nil);
-
-    gl.EnableVertexAttribArray(1);
-    gl.BindBuffer(gl.ARRAY_BUFFER, font.uvbuff);
-    gl.VertexAttribPointer(1, 3, gl.FLOAT, gl.FALSE, 0, nil);
-
-    gl.Enable(gl.BLEND);
-    gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    /* gl.Enable(gl.BLEND); */
+    /* gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); */
     gl.DrawArrays(gl.TRIANGLES, 0, i32(len(vertices)));
-
-    gl.DisableVertexAttribArray(0);
-    gl.DisableVertexAttribArray(1);
 }

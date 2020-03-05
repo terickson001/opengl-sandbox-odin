@@ -51,7 +51,7 @@ entity_transform :: proc(using e: Entity) -> [4][4]f32
     return translate * rotate;
 }
 
-draw_entity :: proc(s: Shader, using e: Entity)
+draw_entity :: proc(s: ^Shader, using e: Entity)
 {
     M := entity_transform(e);
 
@@ -60,9 +60,9 @@ draw_entity :: proc(s: Shader, using e: Entity)
     gl.VertexAttrib4fv(7, &M[2][0]);
     gl.VertexAttrib4fv(8, &M[3][0]);
 
-    activate_texture(s, tex^);
-    draw_model(s, mesh^);
-    disable_texture(s, tex^);
+    activate_texture(s, tex);
+    draw_model(s, mesh);
+    disable_texture(s, tex);
 }
 
 
@@ -75,7 +75,7 @@ make_entity_2d :: proc(s: ^Sprite, pos, scale: [2]f32) -> (e: Entity_2D)
     return e;
 }
 
-draw_entity_2d :: proc(s: Shader, using e: ^Entity_2D)
+draw_entity_2d :: proc(s: ^Shader, using e: ^Entity_2D)
 {
     draw_sprite(s, sprite, pos, scale);
 }

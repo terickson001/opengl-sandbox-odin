@@ -33,17 +33,8 @@ Sprite :: struct
     prev_anim  : ^Animation,
     key_index  : u8,
     shader     : Shader,
-    vbuff      : u32,
-    uvbuff     : u32,
-}
 
-Sprite_Buffers :: struct
-{
-    vao      : u32,
-    vbuff    : u32,
-    uvbuff   : u32,
-    vertices : [dynamic][2]f32,
-    uvs      : [dynamic][2]f32,
+    ctx        : Context,
 }
 
 load_sprite :: proc(filepath: string) -> (s: Sprite)
@@ -55,11 +46,9 @@ load_sprite :: proc(filepath: string) -> (s: Sprite)
         fmt.eprintf("Could not open file %q\n", filepath);
         os.exit(1);
     }
-        
-    s.animations = make(map[string]^Animation);
-    gl.GenBuffers(1, &s.vbuff);
-    gl.GenBuffers(1, &s.uvbuff);
-
+    
+    s = make_sprite();
+    
     atlas_file: string;
     if !util.read_fmt(&file, "%F%>", &atlas_file)
     {
@@ -122,8 +111,8 @@ load_sprite :: proc(filepath: string) -> (s: Sprite)
 make_sprite :: proc() -> (s: Sprite)
 {
     s.animations = make(map[string]^Animation);
-    gl.GenBuffers(2, &s.vbuff);
-
+    s.ctx = make_context(2, 0);
+    
     return s;
 }
 
@@ -175,11 +164,7 @@ update_sprite :: proc(s: ^Sprite, dt: f32)
         
 }
 
-render_sprite :: proc(shader: Shader, s: ^Sprite, pos, scale: [2]f32) 
-{
-
-}
-draw_sprite :: proc(shader: Shader, s: ^Sprite, pos, scale: [2]f32)
+draw_sprite :: proc(shader: ^Shader, s: ^Sprite, pos, scale: [2]f32)
 {
     key := s.curr_anim.keys[s.key_index];
     vertices: [6][3]f32;
@@ -206,34 +191,20 @@ draw_sprite :: proc(shader: Shader, s: ^Sprite, pos, scale: [2]f32)
     uvs[4] = {unit_uv.x+unit_dim.x, unit_uv.y};
     uvs[5] = uvs[1];
 
-    gl.BindBuffer(gl.ARRAY_BUFFER, s.vbuff);
-    gl.BufferData(gl.ARRAY_BUFFER, 6*size_of([3]f32), &vertices[0], gl.STATIC_DRAW);
-
-    gl.BindBuffer(gl.ARRAY_BUFFER, s.uvbuff);
-    gl.BufferData(gl.ARRAY_BUFFER, 6*size_of([2]f32), &uvs[0], gl.STATIC_DRAW);
-
     gl.UseProgram(shader.id);
+    
+    bind_context(&s.ctx);
+    update_vbo(&s.ctx, 0, vertices[:]);
+    update_vbo(&s.ctx, 1, uvs[:]);
+    
     gl.ActiveTexture(gl.TEXTURE0);
     gl.BindTexture(gl.TEXTURE_2D, s.atlas.diffuse);
 
     gl.Uniform2i(shader.uniforms["resolution"], 1024, 768);
     gl.Uniform1i(shader.uniforms["diffuse_sampler"], 0);
 
-    gl.EnableVertexAttribArray(0);
-    gl.BindBuffer(gl.ARRAY_BUFFER, s.vbuff);
-    gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 0, nil);
-
-    gl.EnableVertexAttribArray(1);
-    gl.BindBuffer(gl.ARRAY_BUFFER, s.uvbuff);
-    gl.VertexAttribPointer(1, 2, gl.FLOAT, gl.FALSE, 0, nil);
-
     gl.Enable(gl.BLEND);
     gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-
     gl.DrawArrays(gl.TRIANGLES, 0, 6);
-    
     gl.Disable(gl.BLEND);
-
-    gl.DisableVertexAttribArray(0);
-    gl.DisableVertexAttribArray(1);
 }

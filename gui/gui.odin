@@ -702,7 +702,6 @@ next_draw :: proc(using ctx: ^Context, ret: ^Draw) -> bool
 
     ret^ = draws[draw_idx];
     draw_idx += 1;
-    
     return true;
 }
 
