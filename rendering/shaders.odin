@@ -283,9 +283,7 @@ init_shader :: proc(vs_filepath, fs_filepath: string) -> Shader
         defer delete(cstr);
 
         s.uniforms[name] = gl.GetUniformLocation(s.id, cstr);
-        // fmt.printf("Uniform %q: %d\n", name, s.uniforms[name]);
     }
-    // gl.GenBuffers(i32(len(s.buffers)), &s.buffers[0]);
     
     vs_time, _ := os.last_write_time_by_name(vs_filepath);
     fs_time, _ := os.last_write_time_by_name(fs_filepath);
@@ -303,6 +301,7 @@ shader_check_update :: proc(s: ^Shader) -> bool
     new_time := max(vs_time, fs_time);
     if s.time < new_time
     {
+        fmt.printf("UPDATING\n");
         old := s^;
         s^ = init_shader(s.vs_filepath, s.fs_filepath);
         delete_shader(old);
@@ -316,6 +315,7 @@ delete_shader :: proc(s: Shader)
 {
     delete(s.vs_filepath);
     delete(s.fs_filepath);
-
+    delete(s.uniforms);
+    
     gl.DeleteProgram(s.id);
 }

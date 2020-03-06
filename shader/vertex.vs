@@ -38,14 +38,13 @@ void main()
     // Position of the vertex, in worldspace
     vert.position_m =  (M * vec4(vertex_position,1)).xyz;
     
-    // vec3 position_cameraspace = (MV * vec4(vertex_position, 1)).xyz;
-    // vec3 plane_normal = (inverse(V) * vec4(0, 0, 0, 1)).xyz * vec3(1, 0, 1);
-    // plane_normal = normalize((inverse(M) * vec4(plane_normal, 0)).xyz);
+    vec3 plane_normal = (inverse(V) * vec4(0, 0, 0, 1)).xyz * vec3(1, 1, 1);
+    plane_normal = normalize((inverse(M) * vec4(plane_normal, 0)).xyz);
     
     // vec3 plane_normal = (inverse(V) * vec4(0, 0, -1, 0)).xyz * vec3(1,0,1);
     // plane_normal = normalize((inverse(M) * vec4(plane_normal, 0)).xyz);
 
-    // vec3 flattened = vertex_position - dot(vertex_position, plane_normal)*plane_normal*0.99;
+    vec3 flattened = vertex_position - dot(vertex_position, plane_normal)*plane_normal*0.99;
     
     // Vector from vertex to camera, in camera space
     vec3 vertex_position_mv = (MV * vec4(vertex_position, 1)).xyz;
@@ -77,5 +76,5 @@ void main()
 
     // Position of the vertex, in clip space
     gl_Position = mvp_mat * vec4(vertex_position, 1);
-    // gl_Position = mvp_mat * vec4(flattened, 1);
+    gl_Position = mvp_mat * vec4(flattened, 1);
 }

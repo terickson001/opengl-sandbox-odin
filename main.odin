@@ -135,7 +135,7 @@ do_gui :: proc(ctx: ^gui.Context, win: render.Window, dt: f64)
 
         gui.row(ctx, 2, {-100, 0}, 0);
         gui.text_input(ctx, "Text input", &text_buf, {.Left});
-        /* gui.number_input(ctx, "Number input", &value, "%.1f", 0, 100, 0, {}); */
+        gui.number_input(ctx, "Number input", &value, "%.1f", 0, 100, 0, {});
         gui.window_end(ctx);
     }
 
@@ -182,20 +182,13 @@ main :: proc()
     gl.Enable(gl.CULL_FACE);
     gl.Enable(gl.MULTISAMPLE);
 
-    /* gl.Enable(gl.BLEND); */
-    /* gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA) */;
-
-    // glfw.set_input_mode(window.handle, glfw.CURSOR, int(glfw.CURSOR_DISABLED));
+    glfw.set_input_mode(window.handle, glfw.CURSOR, int(glfw.CURSOR_DISABLED));
     
-    vao: u32;
-    gl.GenVertexArrays(1, &vao);
-    gl.BindVertexArray(vao);
-
     suzanne_m := render.make_mesh("./res/suzanne.obj", true, false);
     render.create_mesh_vbos(&suzanne_m);
     suzanne_t := render.load_texture("./res/grass.png");
     suzanne := render.make_entity(&suzanne_m, &suzanne_t, {0, 0, 0}, {0, 0, -1});
-    suzanne_2 := render.make_entity(&suzanne_m, &suzanne_t, {0, 2, 0}, {0, 0, -1});
+    suzanne_2 := render.make_entity(&suzanne_m, &suzanne_t, {0, 1.5, 0}, {0, 0, -1});
     
     s := render.init_shader("./shader/vert2d.vs", "./shader/frag2d.fs");
     text_shader := render.init_shader("./shader/text.vs", "./shader/text.fs");
@@ -265,7 +258,7 @@ main :: proc()
 
             render.update_camera(window, &camera, time_step);
             do_gui(&gui_ctx, window, f64(time_step));
-            render.update_entity_2d(&adventurer, time_step);
+            // render.update_entity_2d(&adventurer, time_step);
             
             /*
             size := adventurer.sprite.dim * adventurer.scale;
@@ -296,7 +289,7 @@ main :: proc()
             render.draw_entity(&shader, suzanne);
             render.draw_entity(&shader, suzanne_2);
             
-            render.draw_entity_2d(&s, &adventurer);
+            // render.draw_entity_2d(&s, &adventurer);
            
             gl.Disable(gl.DEPTH_TEST);
             gl.DepthMask(gl.FALSE);
@@ -315,6 +308,9 @@ main :: proc()
             gl.DepthMask(gl.TRUE);
 
             glfw.swap_buffers(window.handle);
+
+            if render.shader_check_update(&shader) do
+                fmt.printf("===== SHADER RELOADED =====");
         }
         
         current_time = glfw.get_time();

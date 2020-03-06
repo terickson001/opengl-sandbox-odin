@@ -57,7 +57,18 @@ load_obj :: proc(filepath : string) -> Mesh
     temp_verts := make([dynamic][3]f32);
     temp_norms := make([dynamic][3]f32);
     temp_uvs   := make([dynamic][2]f32);
-    
+
+    defer
+    {
+        delete(temp_verts);
+        delete(temp_norms);
+        delete(temp_uvs);
+        
+        delete(vert_indices);
+        delete(norm_indices);
+        delete(uv_indices);
+    }
+        
     for len(file) > 0
     {
         if file[0] == '#'
@@ -114,16 +125,6 @@ load_obj :: proc(filepath : string) -> Mesh
     for uv in uv_indices do
         append(&m.uvs, temp_uvs[uv-1]);
 
-    delete(temp_verts);
-    delete(temp_norms);
-    delete(temp_uvs);
-
-    delete(vert_indices);
-    delete(norm_indices);
-    delete(uv_indices);
-
-    fmt.printf("#Vertices = %d\n", len(m.vertices));
-    
     return m;
 }
 
