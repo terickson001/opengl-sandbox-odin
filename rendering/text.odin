@@ -96,7 +96,7 @@ load_font :: proc(name: string) -> (font: Font)
     for i in 32..<128
     {
         filepath := fmt.tprintf("%s_msdf/%d.png", name, i);
-        img := image.load(filepath, .RGBA);
+        img := image.load_from_file(filepath, .RGBA);
 
         if img.data == nil
         {

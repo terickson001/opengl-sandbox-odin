@@ -39,16 +39,10 @@ init_mesh :: proc() -> Mesh
     return m;
 }
 
-load_obj :: proc(filepath : string) -> Mesh
+load_obj_from_mem :: proc(data: []byte) -> Mesh
 {
-    file_buf, ok := os.read_entire_file(filepath);
-    if !ok
-    {
-        fmt.eprintf("Couldn't open .obj %q for reading\n", filepath);
-        return Mesh{};
-    }
-    file := string(file_buf);
-    m := init_mesh();
+    file := string(data);
+     m := init_mesh();
 
     vert_indices := make([dynamic]u16);
     norm_indices := make([dynamic]u16);
@@ -126,6 +120,18 @@ load_obj :: proc(filepath : string) -> Mesh
         append(&m.uvs, temp_uvs[uv-1]);
 
     return m;
+}
+
+load_obj :: proc(filepath : string) -> Mesh
+{
+    data, ok := os.read_entire_file(filepath);
+    if !ok
+    {
+        fmt.eprintf("Couldn't open .obj %q for reading\n", filepath);
+        return Mesh{};
+    }
+    
+    return load_obj_from_mem(data);
 }
 
 is_near :: inline proc(v1: f32, v2: f32) -> bool

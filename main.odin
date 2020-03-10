@@ -11,6 +11,8 @@ import "shared:glfw"
 import render "rendering"
 import "control"
 import "gui"
+import "util"
+import "asset"
 
 gui_text_width :: proc(font: rawptr, text: string, size: int) -> f32
 {
@@ -187,13 +189,20 @@ main :: proc()
     suzanne_m := render.make_mesh("./res/suzanne.obj", true, false);
     render.create_mesh_vbos(&suzanne_m);
     suzanne_t := render.load_texture("./res/grass.png");
-    suzanne := render.make_entity(&suzanne_m, &suzanne_t, {0, 0, 0}, {0, 0, -1});
-    suzanne_2 := render.make_entity(&suzanne_m, &suzanne_t, {0, 1.5, 0}, {0, 0, -1});
-    
-    s := render.init_shader("./shader/vert2d.vs", "./shader/frag2d.fs");
-    text_shader := render.init_shader("./shader/text.vs", "./shader/text.fs");
-    shader := render.init_shader("./shader/vertex.vs", "./shader/fragment.fs");
+    suzanne   := render.make_entity(&suzanne_m, &suzanne_t, {0, 0, 0}, {0, 0, -1});
+    suzanne_2 := render.make_entity(&suzanne_m, &suzanne_t, {0, 0, 3}, {0, 0, -1});
+    suzanne_3 := render.make_entity(&suzanne_m, &suzanne_t, {3, 0, 0}, {0, 0, -1});
+    suzanne_4 := render.make_entity(&suzanne_m, &suzanne_t, {3, 0, 3}, {0, 0, -1});
 
+    cube := render.prim_cube();
+    cobble := render.load_texture("./res/cobble.png");
+    block := render.make_entity(&cube, &cobble, {0, -2, 0}, {0, 0, -1});
+
+    /* s := render.init_shader("./shader/vert2d.vs", "./shader/frag2d.fs"); */
+    /* text_shader := render.init_shader("./shader/text.vs", "./shader/text.fs"); */
+    catalog := asset.make_catalog();
+    asset.load(&catalog, "./shader/3d.glsl");
+    shader := catalog.assets["3d"].variant.(asset.Shader).program;
 
     gl.ClearColor(0.0, 0.3, 0.4, 0.0);
     // gl.ClearColor(0.55, 0.2, 0.3, 0.0);
@@ -215,9 +224,9 @@ main :: proc()
     accum_time := 0.0;
     fps_buf: [8]byte;
     fps_str: string;
-
+    
     projection_mat := cast([4][4]f32)linalg.matrix4_perspective(
-        linalg.radians(45),
+        linalg.radians(50),
         f32(window.width) / f32(window.height),
         0.1, 100
     );
@@ -226,7 +235,7 @@ main :: proc()
     cam_pos := [3]f32{0, 0, 4};
     camera := render.make_camera(cam_pos, cam_pos*-1, 3.0, 0.15);
 
-    light_pos := [3]f32{4, 4, 4};
+    light_pos := [3]f32{0, 5, 4};
     light_col := [3]f32{1, 1, 1};
     light_pow := f32(50.0);
     
@@ -237,7 +246,7 @@ main :: proc()
     gui_ctx.style.font = cast(rawptr)&font;
 
     gui_render_ctx := render.make_context(2, 0);
-
+    
     updated: bool;
     for glfw.get_key(window.handle, glfw.KEY_ESCAPE) != glfw.PRESS &&
         !glfw.window_should_close(window.handle)
@@ -276,7 +285,6 @@ main :: proc()
         {
             gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
             view_mat = render.get_camera_view(camera);
-            vp := projection_mat * view_mat;
 
             gl.UseProgram(shader.id);
             gl.UniformMatrix4fv(shader.uniforms["V"], 1, gl.FALSE, &view_mat[0][0]);
@@ -286,9 +294,20 @@ main :: proc()
             gl.Uniform3f(shader.uniforms["light_color"], light_col[0], light_col[1], light_col[2]);
             gl.Uniform1f(shader.uniforms["light_power"], light_pow);
 
-            render.draw_entity(&shader, suzanne);
-            render.draw_entity(&shader, suzanne_2);
-            
+            suzanne.dir   = linalg.normalize(camera.dir*{1,0,1});
+            suzanne_2.dir = linalg.normalize(camera.dir*{1,0,1});
+            suzanne_3.dir = linalg.normalize(camera.dir*{1,0,1});
+            suzanne_4.dir = linalg.normalize(camera.dir*{1,0,1});
+            // render.set_uniform(&shader, "flatten", true);
+            {
+                render.draw_entity(&shader, suzanne);
+                render.draw_entity(&shader, suzanne_2);
+                render.draw_entity(&shader, suzanne_3);
+                render.draw_entity(&shader, suzanne_4);
+            }
+            // render.set_uniform(&shader, "flatten", false);
+
+            render.draw_entity(&shader, block);
             // render.draw_entity_2d(&s, &adventurer);
            
             gl.Disable(gl.DEPTH_TEST);
@@ -297,11 +316,11 @@ main :: proc()
             gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
             {
                 fps_w := render.get_text_width(font, string(fps_str[:]), 24);
-                render.draw_text(&text_shader, &font, string(fps_str[:]),
-                                 {f32(window.width)-fps_w, f32(window.height-24)},
-                                 24);
+                /* render.draw_text(&text_shader, &font, string(fps_str[:]), */
+                /*                  {f32(window.width)-fps_w, f32(window.height-24)}, */
+                /*                  24); */
                 
-                draw_gui(&gui_ctx, &s, &text_shader, &gui_render_ctx, &font);
+                // draw_gui(&gui_ctx, &s, &text_shader, &gui_render_ctx, &font);
             }
             gl.Disable(gl.BLEND);
             gl.Enable(gl.DEPTH_TEST);

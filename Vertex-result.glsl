@@ -1,5 +1,5 @@
-#version 430 core
 
+#version 430 core
 layout(location = 0) in vec3 vertex_position;
 layout(location = 1) in vec2 vertex_uv;
 layout(location = 2) in vec3 vertex_normal;
@@ -11,11 +11,11 @@ layout(location = 5) in mat4 M;
 // layout (location = 7) in use ...
 // layout (location = 8) in use ...
 
-out VS_OUT {
+out Vertex {
     vec2 uv;
     vec3 position_m;
     vec3 position_mv;
-    
+
     vec3 normal_mv;
     vec3 eye_direction_mv;
     vec3 light_direction_mv;
@@ -24,8 +24,10 @@ out VS_OUT {
     vec3 light_direction_tbn;
 } vert;
 
+
 uniform mat4 V;
 uniform mat4 P;
+uniform mat4 Ortho;
 
 uniform vec3 light_position_m;
 
@@ -48,6 +50,8 @@ void main()
         position = flattened; 
     }
 
+    // vec3 pixelated = round(position*6)/6;
+    
     // Position of the vertex, in worldspace
     vert.position_m =  (M * vec4(position,1)).xyz;
     
@@ -78,3 +82,5 @@ void main()
     
     gl_Position = P*MV * vec4(position, 1);
 }
+
+

@@ -1,5 +1,6 @@
 package rendering
 
+import "core:fmt"
 import "core:math"
 import "core:math/linalg"
 
@@ -27,28 +28,40 @@ make_entity :: proc(m: ^Mesh, t: ^Texture, pos, dir: [3]f32) -> (e: Entity)
 {
     e.mesh = m;
     e.tex = t;
-    e.pos  = pos;
-    e.dir  = linalg.normalize(dir);
+    e.pos = pos;
+    e.dir = linalg.normalize(dir);
     return;
 }
 
 entity_transform :: proc(using e: Entity) -> [4][4]f32
 {
+    
     translate := cast([4][4]f32)linalg.matrix4_translate(
         cast(linalg.Vector3)pos
     );
-
-    rotate: [4][4]f32;
+    
+    rotate := cast([4][4]f32)linalg.MATRIX4_IDENTITY;
     {
         right := linalg.cross(dir, [3]f32{0, 1, 0});
         up := linalg.cross(right, dir);
-        rotate = cast([4][4]f32)linalg.matrix4_look_at(
-            cast(linalg.Vector3)pos,
+        quat := linalg.quaternion_look_at(
+            cast(linalg.Vector3)(pos),
             cast(linalg.Vector3)(pos+dir),
-            cast(linalg.Vector3)up);
-    }
+            cast(linalg.Vector3)(up)
+        );
+        rotate = cast([4][4]f32)linalg.matrix4_from_quaternion(quat);
+        
+        /* rotate = cast([4][4]f32)linalg.matrix4_look_at( */
+        /*     cast(linalg.Vector3)pos, */
+        /*     cast(linalg.Vector3)(pos+dir), */
+        /*     cast(linalg.Vector3)up); */
 
-    return translate * rotate;
+        /* rotate[3] = {0, 0, 0, 1}; */
+    }
+    
+    transform := linalg.mul(translate,  rotate);
+    return transform;
+   
 }
 
 draw_entity :: proc(s: ^Shader, using e: Entity)

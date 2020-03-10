@@ -97,26 +97,25 @@ texture_palette_index :: proc(palette: ^Texture, i: int) -> [2]f32
     return uv;
 }
 
-image_texture :: proc(filepath: string) -> (u32, Texture_Info)
+image_texture :: proc{image_texture_from_mem, image_texture_from_file};
+image_texture_from_image :: proc(img: image.Image) -> (u32, Texture_Info)
 {
-    img := image.load(filepath);
-
     pixel_depth := img.depth == 16 ? 2 : 1;
-    if img.flipped.y
-    {
-        row_size := u32(img.width) * (u32(img.format) & 7) * u32(pixel_depth);
-        end := row_size * img.height;
-        swap := make([]byte, row_size);
-        for row in 0..<(img.height/2)
-        {
-            a := img.data[row*row_size:(row+1)*row_size];
-            b := img.data[end-(row+1)*row_size:end-row*row_size];
-            copy(swap, a);
-            copy(a, b);
-            copy(b, swap);
-        }
-        delete(swap);
-    }
+    /* if img.flipped.y */
+    /* { */
+    /*     row_size := u32(img.width) * (u32(img.format) & 7) * u32(pixel_depth); */
+    /*     end := row_size * img.height; */
+    /*     swap := make([]byte, row_size); */
+    /*     for row in 0..<(img.height/2) */
+    /*     { */
+    /*         a := img.data[row*row_size:(row+1)*row_size]; */
+    /*         b := img.data[end-(row+1)*row_size:end-row*row_size]; */
+    /*         copy(swap, a); */
+    /*         copy(a, b); */
+    /*         copy(b, swap); */
+    /*     } */
+    /*     delete(swap); */
+    /* } */
 
     format := u32(gl.RGBA);
     iformat := u32(gl.RGBA8);
@@ -146,8 +145,6 @@ image_texture :: proc(filepath: string) -> (u32, Texture_Info)
     gl.TexStorage2D(gl.TEXTURE_2D, 1, u32(iformat), i32(img.width), i32(img.height));
     gl.TexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, i32(img.width), i32(img.height), format, type, &img.data[0]);
 
-    delete(img.data);
-    
     gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
     gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
     gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
@@ -157,6 +154,22 @@ image_texture :: proc(filepath: string) -> (u32, Texture_Info)
     gl.BindTexture(gl.TEXTURE_2D, 0);
 
     return texture_id, {img.width, img.height, gl.TEXTURE_2D};
+}
+
+image_texture_from_mem :: proc(data: []byte) -> (u32, Texture_Info)
+{
+    img := image.load(data);
+    defer delete(img.data);
+    
+    return image_texture_from_image(img);
+}
+
+image_texture_from_file :: proc(filepath: string) -> (u32, Texture_Info)
+{
+    img := image.load(filepath);
+    defer delete(img.data);
+
+    return image_texture_from_image(img);
 }
 
 load_texture :: proc(diff: string, norm := "", spec := "") -> Texture

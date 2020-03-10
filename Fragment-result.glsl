@@ -1,6 +1,5 @@
 #version 430 core
-
-in VS_OUT {
+in Vertex {
     vec2 uv;
     vec3 position_m;
     vec3 position_mv;
@@ -12,7 +11,6 @@ in VS_OUT {
     vec3 eye_direction_tbn;
     vec3 light_direction_tbn;
 } frag;
-
 out vec3 color;
 
 uniform sampler2D diffuse_sampler;

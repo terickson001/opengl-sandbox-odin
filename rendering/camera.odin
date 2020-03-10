@@ -96,9 +96,9 @@ update_camera_position :: proc(win: Window, cam: ^Camera, dt: f32)
         cam.pos -= cam.right * (dt*cam.move_speed);
 
     if control.key_down(' ') do
-        cam.pos += cam.up * (dt*cam.move_speed);
+        cam.pos += {0, 1, 0} * (dt*cam.move_speed);
     if control.key_down(int(glfw.KEY_LEFT_SHIFT)) do
-        cam.pos -= cam.up * (dt*cam.move_speed);
+        cam.pos -= {0, 1, 0} * (dt*cam.move_speed);
 }
 
 update_camera :: proc(win: Window, cam: ^Camera, dt: f32)

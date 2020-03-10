@@ -6,6 +6,7 @@ import "core:os"
 import "core:strings"
 import "core:mem"
 import "core:intrinsics"
+import "core:runtime"
 
 import "../util"
 
@@ -14,9 +15,10 @@ Shader :: struct
     id: u32,
     time: os.File_Time,
 
-    vs_filepath: string,
-    fs_filepath: string,
+    filepath: string,
 
+    version: string,
+    
     uniforms : map[string]i32,
     buffers  : [dynamic]u32
 }
@@ -32,7 +34,7 @@ set_uniform :: proc(using s: ^Shader, name: string, val: $T)
 
     E :: intrinsics.type_elem_type(T);
     N :: size_of(T) / size_of(E);
-    when intrinsics.type_is_integer(E)
+    when intrinsics.type_is_integer(E) || intrinsics.type_is_boolean(E) || intrinsics.type_is_enum(E)
     {
         when intrinsics.type_is_unsigned(E)
         {
@@ -87,11 +89,71 @@ Shader_Interface :: struct
 }
 */
 
-parse_shader :: proc(using shader: ^Shader, source: []byte, buff: ^strings.Builder = nil) -> ^strings.Builder
+Shader_Kind :: enum
+{
+    _,
+    Vertex,
+    Geometry,
+    Fragment,
+}
+
+gl_shader_kind :: proc(k: Shader_Kind) -> u32
+{
+    switch k
+    {
+        case .Vertex:   return gl.VERTEX_SHADER;
+        case .Geometry: return gl.GEOMETRY_SHADER;
+        case .Fragment: return gl.FRAGMENT_SHADER;
+        case: return 0;
+    }
+}
+
+Shader_Parser :: struct
+{
+    using shader: ^Shader,
+    
+    current: Shader_Kind,
+    interface: struct
+    {
+        from_kind: Shader_Kind,
+        out_name : string,
+        in_name  : string,
+        block    : string,
+    },
+    indices: [Shader_Kind][2]int,
+    start: int,
+    buff: ^strings.Builder,
+}
+
+@(private="file")
+write_interface :: proc(using p: ^Shader_Parser)
+{
+    if interface.from_kind == nil do return;
+    
+    name, ok := fmt.enum_value_to_string(interface.from_kind);
+    if !ok do
+        panic("Interface block not associated with a source shader");
+
+    is_out := interface.from_kind == p.current;
+    if is_out do strings.write_string(buff, "out ");
+    else      do strings.write_string(buff, "in ");
+
+    strings.write_string(buff, fmt.tprintf("%s ", name));
+    strings.write_string(buff, interface.block);
+    strings.write_byte(buff, ' ');
+    
+    if is_out do strings.write_string(buff, interface.out_name);
+    else      do strings.write_string(buff, interface.in_name);
+
+    strings.write_string(buff, ";\n");
+
+    if !is_out do interface = {};
+}
+
+parse_shader :: proc(using p: ^Shader_Parser, path: string, source: []byte)
 {
     using util;
 
-    buff := buff;
     top_level := false;
     if buff == nil
     {
@@ -101,51 +163,94 @@ parse_shader :: proc(using shader: ^Shader, source: []byte, buff: ^strings.Build
     
     file := string(source[:]);
     ident: string;
-    line: string;
     for len(file) > 0
     {
         write := true;
-        read_line(&file, &line);
-        line_orig := line[:];
-        if !top_level && strings.has_prefix(line, "#version")
-        {
-            write = false;
-        }
-        else if read_fmt(&line, "@%s%_", &ident)
+        line_start := file[:];
+        
+        if read_fmt(&file, "@%s%>", &ident)
         {
             write = false;
             switch ident
             {
             case "import":
                 imported: string;
-                if !read_string(&line, &imported)
+                if !read_filepath(&file, &imported)
                 {
                     fmt.eprintf("ERROR: Could not read filename after @import\n");
                     os.exit(1);
                 }
-                
-                imp_data, ok := os.read_entire_file(imported);
+
+                path := fmt.aprintf("%s/%s", util.dir(path), imported);
+                imp_data, ok := os.read_entire_file(path);
                 if !ok
                 {
                     fmt.eprintf("ERROR: Could not open @import'ed file %q\n", imported);
                     os.exit(1);
                 }
 
-                parse_shader(shader, imp_data, buff);
+                parse_shader(p, path, imp_data);
+                delete(path);
+
+            case "version":
+                read_line(&file, &version);
                 
+            case "vertex":
+                if current > .Vertex do
+                    panic("All vertex shader chunks must be first in file");
+                if current != .Vertex do
+                    strings.write_string(buff, fmt.tprintf("#version %s\n", version));
+                current = .Vertex;
+                
+            case "geometry":
+                if current > .Geometry do
+                    panic("All geometry shader chunks must be after the vertex shader and before the fragment shader");
+                if current != .Geometry
+                {
+                    if current != nil
+                    {
+                        indices[current] = {start, len(buff.buf)};
+                        start = len(buff.buf);
+                    }
+                    strings.write_string(buff, fmt.tprintf("#version %s\n", version));
+                    current = .Geometry;
+                    write_interface(p);
+                }
+                
+            case "fragment":
+                if current > .Fragment do
+                    panic("All fragment shader chunks must be last in file");
+                
+                if current != .Fragment
+                {
+                    if current != nil
+                    {
+                        indices[current] = {start, len(buff.buf)};
+                        start = len(buff.buf);
+                    }
+                    strings.write_string(buff, fmt.tprintf("#version %s\n", version));
+                    current = .Fragment;
+                    write_interface(p);
+                }
+
+                case "interface":
+                interface.from_kind = current;
+                read_fmt(&file, "(%>%s%>,%>%s%>)%>%S{}", &interface.out_name, &interface.in_name, &interface.block);
+                write_interface(p);
+
             case:
                 fmt.eprintf("ERROR: Invalid attribute '@%s' in shader\n", ident);
                 os.exit(1);
             }
         }
-        else if read_fmt(&line, "%s%_", &ident)
+        else if read_fmt(&file, "%s%_", &ident)
         {
             switch ident
             {
             case "layout":
                 loc := -1;
                 name: string;
-                if !read_fmt(&line, "%_(location%_=%_%d)%_in%_%^s%_%s%_;", &loc, &name)
+                if !read_fmt(&file, "%_(location%_=%_%d)%_in%_%^s%_%s%_;%>", &loc, &name)
                 {
                     fmt.eprintf("ERROR: Couldn't parse shader attribute\n");
                     os.exit(1);
@@ -155,27 +260,29 @@ parse_shader :: proc(using shader: ^Shader, source: []byte, buff: ^strings.Build
                 
             case "uniform":
                 name: string;
-                if !read_fmt(&line, "%_%^s%_%s%_;", &name)
+                if !read_fmt(&file, "%_%^s%_%s%_;%>", &name)
                 {
                     fmt.eprintf("ERROR: Couldn't parse shader uniform\n");
                     os.exit(1);
                 }
                 uniforms[name] = -1;
+                
+            case:
+                read_line(&file, nil);
             }
         }
-        
-        if write
+        else
         {
-            strings.write_string(buff, line_orig);
-            strings.write_byte(buff, '\n');
+            read_line(&file, nil);
         }
-            
-    }
 
-    return buff;
+        if write do
+            strings.write_string(buff, line_start[:len(line_start)-len(file)]);
+    }
+    indices[current] = {start, len(buff.buf)};
 }
 
-compile_shader :: proc(filepath: string, code: []byte, kind: u32) -> u32
+compile_shader :: proc(name: string, code: []byte, kind: u32) -> u32
 {
     id := gl.CreateShader(kind);
     
@@ -183,7 +290,7 @@ compile_shader :: proc(filepath: string, code: []byte, kind: u32) -> u32
     info_log_length: i32;
 
     // Compile
-    fmt.printf("Compiling shader: %s\n", filepath);
+    fmt.printf("Compiling shader: %s\n", name);
     source := &code[0];
     length := i32(len(code));
     gl.ShaderSource(id, 1, &source, &length);
@@ -205,48 +312,39 @@ compile_shader :: proc(filepath: string, code: []byte, kind: u32) -> u32
     return id;
 }
 
-load_shader :: proc(vs_filepath, fs_filepath: string) -> Shader
+load_shader_from_mem :: proc(code: []byte, filepath := string{}) -> Shader
 {
-    vs_code, fs_code: []byte;
-    ok: bool;
-    if vs_code, ok = os.read_entire_file(vs_filepath); !ok
-    {
-        fmt.eprintf("Failed to open vertex shader '%s'\n", vs_filepath);
-        return {};
-    }
-    if fs_code, ok = os.read_entire_file(fs_filepath); !ok
-    {
-        fmt.eprintf("Failed to open fragment shader '%s'\n", vs_filepath);
-        return {};
-    }
+    // Parse
+    shader := Shader{};
+    parser := Shader_Parser{shader=&shader, current=nil};
+    
+    parse_shader(&parser, filepath, code);
+
+    defer strings.destroy_builder(parser.buff);
 
     // Compile
-    shader := Shader{};
-    shader.uniforms = make(map[string]i32);
-    shader.buffers  = make([dynamic]u32);
-    vs_builder := parse_shader(&shader, vs_code);
-    fs_builder := parse_shader(&shader, fs_code);
+    program_id := gl.CreateProgram();
     
-    defer
+    separate: [Shader_Kind][]byte;
+    compiled: [Shader_Kind]u32;
+    for k in Shader_Kind
     {
-        strings.destroy_builder(vs_builder);
-        strings.destroy_builder(fs_builder);
+        start, end := expand_to_tuple(parser.indices[k]);
+        separate[k] = parser.buff.buf[start:end];
+        if len(separate[k]) != 0
+        {
+            compiled[k] = compile_shader(fmt.tprintf("%s:%v", filepath, k), separate[k], gl_shader_kind(k));
+            gl.AttachShader(program_id, compiled[k]);
+        }
     }
-    
-    vs_id := compile_shader(vs_filepath, vs_builder.buf[:], gl.VERTEX_SHADER);
-    fs_id := compile_shader(fs_filepath, fs_builder.buf[:], gl.FRAGMENT_SHADER);
 
     // Link
     fmt.println("Linking program");
-    program_id := gl.CreateProgram();
-    gl.AttachShader(program_id, vs_id);
-    gl.AttachShader(program_id, fs_id);
     gl.LinkProgram(program_id);
 
+    // Check
     result := i32(gl.FALSE);
     info_log_length: i32;
-    
-    // Check
     gl.GetProgramiv(program_id, gl.LINK_STATUS, &result);
     gl.GetProgramiv(program_id, gl.INFO_LOG_LENGTH, &info_log_length);
     if info_log_length > 0
@@ -259,51 +357,52 @@ load_shader :: proc(vs_filepath, fs_filepath: string) -> Shader
         return {};
     }
 
-    gl.DetachShader(program_id, vs_id);
-    gl.DetachShader(program_id, fs_id);
-
-    gl.DeleteShader(vs_id);
-    gl.DeleteShader(fs_id);
+    for shader_id in compiled
+    {
+        gl.DetachShader(program_id, shader_id);
+        gl.DeleteShader(shader_id);
+    }
     
     shader.id = program_id;
 
-    return shader;
-}
-
-init_shader :: proc(vs_filepath, fs_filepath: string) -> Shader
-{
-    s := load_shader(vs_filepath, fs_filepath);
+    // Initialize
+    shader.filepath = strings.clone(filepath);
     
-    s.vs_filepath = strings.clone(vs_filepath);
-    s.fs_filepath = strings.clone(fs_filepath);
-
-    for name, _ in s.uniforms
+    for name, _ in shader.uniforms
     {
         cstr := strings.clone_to_cstring(name);
         defer delete(cstr);
 
-        s.uniforms[name] = gl.GetUniformLocation(s.id, cstr);
+        shader.uniforms[name] = gl.GetUniformLocation(shader.id, cstr);
     }
+
+    if filepath != "" do
+        shader.time, _ = os.last_write_time_by_name(filepath);
+
+    return shader;
+}
+
+load_shader :: proc(filepath: string) -> Shader
+{
+    code, ok := os.read_entire_file(filepath);
+    if !ok
+    {
+        fmt.eprintf("Failed to open shader %q\n", filepath);
+        return {};
+    }
+
+    shader :=  load_shader_from_mem(code, filepath);
     
-    vs_time, _ := os.last_write_time_by_name(vs_filepath);
-    fs_time, _ := os.last_write_time_by_name(fs_filepath);
-
-    s.time = max(vs_time, fs_time);
-
-    return s;
+    return shader;
 }
 
 shader_check_update :: proc(s: ^Shader) -> bool
 {
-    vs_time, _ := os.last_write_time_by_name(s.vs_filepath);
-    fs_time, _ := os.last_write_time_by_name(s.fs_filepath);
-
-    new_time := max(vs_time, fs_time);
+    new_time, _ := os.last_write_time_by_name(s.filepath);
     if s.time < new_time
     {
-        fmt.printf("UPDATING\n");
         old := s^;
-        s^ = init_shader(s.vs_filepath, s.fs_filepath);
+        s^ = load_shader(s.filepath);
         delete_shader(old);
         return true;
     }
@@ -313,8 +412,7 @@ shader_check_update :: proc(s: ^Shader) -> bool
 
 delete_shader :: proc(s: Shader)
 {
-    delete(s.vs_filepath);
-    delete(s.fs_filepath);
+    delete(s.filepath);
     delete(s.uniforms);
     
     gl.DeleteProgram(s.id);

@@ -25,13 +25,17 @@ char_is_ident :: proc(c: u8) -> bool
     return char_is_alphanum(c) || c == '_';
 }
 
-read_char :: proc(str: ^string, c: ^byte) -> bool
+read_char :: proc(str: ^string, ret: ^byte) -> bool
 {
-    c^ = 0;
-    if len(str) == 0 do return false;
+    c := byte(0);
+    defer if ret != nil do ret^ = c;
+    
+    if len(str^) == 0 do
+        return false;
 
-    c^ = str[0];
+    c = str[0];
     str^ = str[1:];
+
     return true;
 }
 
@@ -155,12 +159,12 @@ read_custom_bool :: proc(str: ^string, true_str: string, false_str: string, ret:
 {
     ret^ = false;
 
-    if strings.compare(str^, true_str) == 0
+    if strings.has_prefix(str^, true_str)
     {
         ret^ = true;
         str^ = str[len(true_str):];
     }
-    else if strings.compare(str^, false_str) == 0
+    else if strings.has_prefix(str^, false_str)
     {
         ret^ = false;
         str^ = str[len(false_str):];
@@ -170,6 +174,30 @@ read_custom_bool :: proc(str: ^string, true_str: string, false_str: string, ret:
         return false;
     }
 
+    return true;
+}
+
+read_surround :: proc(str: ^string, open, close: byte, ret: ^string) -> bool
+{
+    ret^ = string{};
+
+    idx := 0;
+    if str[idx] != open do
+        return false;
+    
+    idx += 1;
+    level := 1;
+    for level > 0
+    {
+        if      str[idx] == open  do level += 1;
+        else if str[idx] == close do level -= 1;
+        idx += 1;
+        if idx >= len(str) do return false;
+    }
+
+    ret^ = str[:idx];
+    str^ = str[idx:];
+    
     return true;
 }
 
@@ -322,6 +350,16 @@ read_any :: proc(str: ^string, arg: any, verb: u8 = 'v') -> bool
             
             case: fmt.eprintf("Invalid type %T for specifier %%%c\n", kind, verb);
         }
+
+    case 'c':
+        if arg == nil do
+            return read_char(str, nil);
+
+        switch kind in arg
+        {
+            case ^u8: ok = read_char(str, kind);
+            case: fmt.eprintf("Invalid type %T for specifier %%%c\n", kind, verb);
+        }
         
     case 'q':
         if arg == nil
@@ -445,16 +483,17 @@ read_fmt :: proc(str: ^string, fmt_str: string, args: ..any) -> bool
             arg = args[aidx];
         switch fmt_str[fidx]
         {
-        case 'd': fallthrough;
+        case 'v': fallthrough;
         case 'f': fallthrough;
+        case 'd': fallthrough;
+        case 'c': fallthrough;
         case 'q': fallthrough;
         case 's': fallthrough;
         case 'F': fallthrough;
-        case 'b': fallthrough;
-        case 'v':
+        case 'b':
             ok = read_any(str, arg, fmt_str[fidx]);
-            fidx += 1;
             if capture do aidx += 1;
+            fidx += 1;
 
         case '_': fallthrough;
         case '>':
@@ -467,7 +506,7 @@ read_fmt :: proc(str: ^string, fmt_str: string, args: ..any) -> bool
             false_str: string;
             if !read_fmt(&fmt_copy, "{%_%s%_,%_%s%_}", &true_str, &false_str)
             {
-                fmt.eprintf("Format specifier %B must be followed by boolean specifiers: {true,false}\n");
+                fmt.eprintf("Format specifier %%B must be followed by boolean specifiers: {true,false}\n");
                 break;
             }
             
@@ -479,6 +518,30 @@ read_fmt :: proc(str: ^string, fmt_str: string, args: ..any) -> bool
 
             if capture do aidx += 1;
             fidx += len(fmt_str) - len(fmt_copy) - 1;
+            
+        case 'S':
+            fmt_copy := fmt_str[fidx+1:];
+            open, close: byte;
+            if !read_fmt(&fmt_copy, "%c%c", &open, &close)
+            {
+                fmt.eprintf("Format specifier %%S must be followed by delimiter characters: i.e %%S(), %%S{}\n");
+                break;
+            }
+            
+            if arg == nil
+            {
+                temp: string;
+                ok = read_surround(str, open, close, &temp);
+            }
+
+            switch kind in arg
+            {
+                case ^string: ok = read_surround(str, open, close, kind);
+                case: fmt.eprintf("Invalid type %T for specifier %%S\n", kind);
+            }
+
+            if capture do aidx += 1;
+            fidx += 3;
 
         case:
             fmt.eprintf("Invalid format specifier '%%%c'\n", fmt_str[fidx]);
