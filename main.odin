@@ -202,7 +202,7 @@ main :: proc()
     /* text_shader := render.init_shader("./shader/text.vs", "./shader/text.fs"); */
     catalog := asset.make_catalog();
     asset.load(&catalog, "./shader/3d.glsl");
-    shader := catalog.assets["3d"].variant.(asset.Shader).program;
+    shader := asset.get_shader(&catalog, "3d");
 
     gl.ClearColor(0.0, 0.3, 0.4, 0.0);
     // gl.ClearColor(0.55, 0.2, 0.3, 0.0);
@@ -248,6 +248,7 @@ main :: proc()
     gui_render_ctx := render.make_context(2, 0);
     
     updated: bool;
+    fmt.printf("ENTERING LOOP\n");
     for glfw.get_key(window.handle, glfw.KEY_ESCAPE) != glfw.PRESS &&
         !glfw.window_should_close(window.handle)
     {
@@ -283,33 +284,42 @@ main :: proc()
         // Only draw if content has been updated
         if updated
         {
+            fmt.printf("DRAWING\n");
             gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
             view_mat = render.get_camera_view(camera);
 
+            fmt.printf("USE_PROGRAM\n");
             gl.UseProgram(shader.id);
-            gl.UniformMatrix4fv(shader.uniforms["V"], 1, gl.FALSE, &view_mat[0][0]);
+            fmt.printf("1\n");
+            render.set_uniform(shader, "V", view_mat);
+            // gl.UniformMatrix4fv(shader.uniforms["V"], 1, gl.FALSE, &view_mat[0][0]);
+            fmt.printf("2\n");
             gl.UniformMatrix4fv(shader.uniforms["P"], 1, gl.FALSE, &projection_mat[0][0]);
 
             gl.Uniform3f(shader.uniforms["light_position_m"], light_pos[0], light_pos[1], light_pos[2]);
+            fmt.printf("3\n");
             gl.Uniform3f(shader.uniforms["light_color"], light_col[0], light_col[1], light_col[2]);
+            fmt.printf("4\n");
             gl.Uniform1f(shader.uniforms["light_power"], light_pow);
 
+            fmt.printf("DRAW_ENTITIES\n");
             suzanne.dir   = linalg.normalize(camera.dir*{1,0,1});
             suzanne_2.dir = linalg.normalize(camera.dir*{1,0,1});
             suzanne_3.dir = linalg.normalize(camera.dir*{1,0,1});
             suzanne_4.dir = linalg.normalize(camera.dir*{1,0,1});
             // render.set_uniform(&shader, "flatten", true);
             {
-                render.draw_entity(&shader, suzanne);
-                render.draw_entity(&shader, suzanne_2);
-                render.draw_entity(&shader, suzanne_3);
-                render.draw_entity(&shader, suzanne_4);
+                render.draw_entity(shader, suzanne);
+                render.draw_entity(shader, suzanne_2);
+                render.draw_entity(shader, suzanne_3);
+                render.draw_entity(shader, suzanne_4);
             }
-            // render.set_uniform(&shader, "flatten", false);
+            // render.set_uniform(shader, "flatten", false);
 
-            render.draw_entity(&shader, block);
+            render.draw_entity(shader, block);
             // render.draw_entity_2d(&s, &adventurer);
            
+            fmt.printf("DRAW_FPS\n");
             gl.Disable(gl.DEPTH_TEST);
             gl.DepthMask(gl.FALSE);
             gl.Enable(gl.BLEND);
@@ -325,11 +335,14 @@ main :: proc()
             gl.Disable(gl.BLEND);
             gl.Enable(gl.DEPTH_TEST);
             gl.DepthMask(gl.TRUE);
+            fmt.printf("SWAP\n");
 
             glfw.swap_buffers(window.handle);
 
-            if render.shader_check_update(&shader) do
-                fmt.printf("===== SHADER RELOADED =====");
+            fmt.printf("DONE DRAWING\n");
+
+            /* if render.shader_check_update(shader) do */
+            /*     fmt.printf("===== SHADER RELOADED ====="); */
         }
         
         current_time = glfw.get_time();

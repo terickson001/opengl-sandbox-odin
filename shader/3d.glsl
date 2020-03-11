@@ -29,7 +29,6 @@ layout(location = 5) in mat4 M;
 
 uniform mat4 V;
 uniform mat4 P;
-uniform mat4 Ortho;
 
 uniform vec3 light_position_m;
 

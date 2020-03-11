@@ -59,10 +59,12 @@ Mesh :: struct
     mesh: render.Mesh,
 }
 
-load :: proc(using c: ^Catalog, filepath: string) -> bool
+load :: proc(using c: ^Catalog, filepath: string, name := "") -> bool
 {
+    name := name;
+    
     ext := util.ext(filepath);
-    name := util.name(filepath);
+    if name == "" do name = util.name(filepath);
     data, ok := os.read_entire_file(filepath);
     if !ok
     {
@@ -82,9 +84,24 @@ load :: proc(using c: ^Catalog, filepath: string) -> bool
     asset.file = strings.clone(filepath);
     file_time, _ := os.last_write_time_by_name(filepath); // @todo(Tyler): Setup cross-platform file watch
     asset.time = u64(file_time);
-    
-    assets[name] = asset;
+
+    alloc_name := strings.clone(name);
+    assets[alloc_name] = asset;
     return true;
+}
+
+get :: proc(using c: ^Catalog, name: string) -> ^Asset
+{
+    fmt.printf("GET\n");
+    asset, ok := assets[name];
+    fmt.printf("DONE\n");
+    if !ok
+    {
+        fmt.eprintf("No asset %q loaded\n", name);
+        return nil;
+    }
+    
+    return asset; 
 }
 
 // Shader
@@ -110,6 +127,20 @@ load_shader :: proc(data: []byte, filepath: string) -> ^Asset
     return shader_asset;
 }
 
+get_shader :: proc(using c: ^Catalog, name: string) -> ^render.Shader
+{
+    asset := get(c, name);
+    if asset == nil do return nil;
+
+    shader_asset, ok := asset.variant.(Shader);
+    if !ok
+    {
+        fmt.eprintf("Asset %q is not a shader");
+        return nil;
+    }
+    return &shader_asset.program;
+}
+
 @private
 mesh_test :: proc(data: []byte, _: string, ext: string) -> bool
 {
@@ -132,6 +163,20 @@ load_mesh :: proc(data: []byte, filepath: string) -> ^Asset
     return mesh_asset;
 }
 
+get_mesh :: proc(using c: ^Catalog, name: string) -> ^render.Mesh
+{
+    asset := get(c, name);
+    if asset == nil do return nil;
+
+    mesh_asset, ok := asset.variant.(Mesh);
+    if !ok
+    {
+        fmt.eprintf("Asset %q is not a shader");
+        return nil;
+    }
+    return &mesh_asset.mesh;
+}
+
 @private
 texture_test :: proc(data: []byte, _: string, _: string) -> bool
 {
@@ -147,4 +192,18 @@ load_texture :: proc(data: []byte, filepath: string) -> ^Asset
     tex_asset.variant = Texture{tex, info};
 
     return tex_asset;
+}
+
+get_texture :: proc(using c: ^Catalog, name: string) -> ^u32
+{
+    asset := get(c, name);
+    if asset == nil do return nil;
+
+    tex_asset, ok := asset.variant.(Texture);
+    if !ok
+    {
+        fmt.eprintf("Asset %q is not a shader");
+        return nil;
+    }
+    return &tex_asset.texture;
 }

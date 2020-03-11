@@ -317,7 +317,8 @@ load_shader_from_mem :: proc(code: []byte, filepath := string{}) -> Shader
     // Parse
     shader := Shader{};
     parser := Shader_Parser{shader=&shader, current=nil};
-    
+
+    shader.uniforms = make(map[string]i32);
     parse_shader(&parser, filepath, code);
 
     defer strings.destroy_builder(parser.buff);
