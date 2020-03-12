@@ -25,13 +25,15 @@ Shader :: struct
 
 set_uniform :: proc(using s: ^Shader, name: string, val: $T)
 {
-    location, found := uniforms[name];
+    for k, v in s.uniforms do
+        fmt.eprintf("   UNIFORM[%q] @ %d\n", k, v);
+    location, found := s.uniforms[name];
     if !found
     {
         fmt.eprintf("ERROR: Shader does not have uniform %q\n", name);
         os.exit(1);
     }
-
+    
     E :: intrinsics.type_elem_type(T);
     N :: size_of(T) / size_of(E);
     when intrinsics.type_is_integer(E) || intrinsics.type_is_boolean(E) || intrinsics.type_is_enum(E)
@@ -65,6 +67,7 @@ set_uniform :: proc(using s: ^Shader, name: string, val: $T)
         else when N == 3 { temp := val; gl.UniformMatrix3fv(location, 1, gl.FALSE, &temp[0][0]); }
         else when N == 4 { temp := val; gl.UniformMatrix4fv(location, 1, gl.FALSE, &temp[0][0]); }
     }
+    fmt.printf("UNIFORM SET\n");
 }
 
 /*

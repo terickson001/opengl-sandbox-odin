@@ -203,7 +203,9 @@ main :: proc()
     catalog := asset.make_catalog();
     asset.load(&catalog, "./shader/3d.glsl");
     shader := asset.get_shader(&catalog, "3d");
-
+    for k, v in shader.uniforms do
+        fmt.eprintf("  UNIFORM[%q] @ %d\n", k, v);
+    
     gl.ClearColor(0.0, 0.3, 0.4, 0.0);
     // gl.ClearColor(0.55, 0.2, 0.3, 0.0);
 

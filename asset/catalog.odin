@@ -135,8 +135,12 @@ get_shader :: proc(using c: ^Catalog, name: string) -> ^render.Shader
     shader_asset, ok := asset.variant.(Shader);
     if !ok
     {
-        fmt.eprintf("Asset %q is not a shader");
+        fmt.eprintf("Asset %q is not a shader\n", name);
         return nil;
+    }
+    for k, v in shader_asset.program.uniforms
+    {
+        fmt.eprintf(" UNIFORM[%q] @ %d\n", k, v);
     }
     return &shader_asset.program;
 }
@@ -171,7 +175,7 @@ get_mesh :: proc(using c: ^Catalog, name: string) -> ^render.Mesh
     mesh_asset, ok := asset.variant.(Mesh);
     if !ok
     {
-        fmt.eprintf("Asset %q is not a shader");
+        fmt.eprintf("Asset %q is not a mesh\n", name);
         return nil;
     }
     return &mesh_asset.mesh;
@@ -202,7 +206,7 @@ get_texture :: proc(using c: ^Catalog, name: string) -> ^u32
     tex_asset, ok := asset.variant.(Texture);
     if !ok
     {
-        fmt.eprintf("Asset %q is not a shader");
+        fmt.eprintf("Asset %q is not a texture\n", name);
         return nil;
     }
     return &tex_asset.texture;
