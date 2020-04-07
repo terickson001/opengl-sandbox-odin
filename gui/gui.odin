@@ -134,8 +134,8 @@ Draw_Icon :: struct
 
 Draw :: struct
 {
-    layer   : int
-    variant : union
+    layer : int
+        variant : union
     {
         Draw_Rect,
         Draw_Text,
@@ -328,17 +328,17 @@ Context :: struct
     focus          : u64,
     last_focus     : u64,
     last_hover     : u64,
-
+    
     layer          : int,
     
     containers     : [dynamic]Rect,
     layout         : Layout,
     style          : Style,
-
+    
     draws          : [dynamic]Draw,
     draw_idx       : int,
     cursor_icon    : Cursor,
-
+    
     display        : Display,
     
     // Inputs
@@ -347,18 +347,18 @@ Context :: struct
     last_mouse     : [3]bool,
     last_keys_down : [MAX_KEY_COUNT]bool,
     last_key_times : [MAX_KEY_COUNT]f32,
-
+    
     delta_time     : f64,
     time           : f64,
-
+    
     // Window State
     window_hover   : ^Window,
     window_focus   : ^Window,
     win_top_layer  : int,
     windows        : [dynamic]^Window,
-
+    
     text_box       : Text_State,
-
+    
     get_text_width : proc(font: rawptr, text: string, size: int) -> f32,
     num_input_buf  : Text_Buffer,
 }
@@ -395,7 +395,7 @@ key_repeat :: proc(using ctx: ^Context, k: Key_Code) -> bool
     if key_pressed(ctx, k) do return true;
     if key_down(ctx, k)
     {
-
+        
         prev_repeat := math.floor((last_key_times[key_map[k]] - repeat_delay) / repeat_int);
         new_repeat  := math.floor((key_times[key_map[k]]      - repeat_delay) / repeat_int);
         return new_repeat > prev_repeat && new_repeat > 0;
@@ -426,17 +426,17 @@ init :: proc() -> (ctx: Context)
     draws      = make([dynamic]Draw);
     windows    = make([dynamic]^Window);
     containers = make([dynamic]Rect);
-
+    
     input_buf.backing = make([]byte, 512);
     repeat_delay = 0.65;
     repeat_int   = 0.03;
-
+    
     for _, i in key_times
     {
         key_times[i] = -1;
         last_key_times[i] = -1;
     }
-        
+    
     return ctx;
 }
 
@@ -445,9 +445,9 @@ begin :: proc(using ctx: ^Context)
     resize(&draws,      0);
     resize(&windows,    0);
     resize(&containers, 0);
-
+    
     draw_idx = 0;
-
+    
     time += delta_time;
     
     push_container(ctx, {0, 0, display.height, display.width});
@@ -459,7 +459,7 @@ begin :: proc(using ctx: ^Context)
     
     layer = 0;
     cursor_icon = .Arrow;
-
+    
     for _, i in keys_down do
         key_times[i] = keys_down[i] ? (key_times[i] == -1.0 ? 0.0 : key_times[i] + f32(delta_time)) : -1.0;
 }
@@ -481,13 +481,13 @@ end :: proc(using ctx: ^Context)
     mem.zero_slice(mouse[:]);
     mem.zero_slice(keys_down[:]);
     mem.zero_slice(scroll[:]);
-
+    
     last_focus = focus;
     last_hover = hover;
     
     // Sort windows by layer
     sort.quick_sort_proc(windows[:], win_zcmp);
-
+    
     // Stack windows
     prev_max := 0;
     new_max := 0;
@@ -495,16 +495,16 @@ end :: proc(using ctx: ^Context)
     {
         win := windows[i];
         win.layer = i;
-
+        
         for d in (win.draws.start)..(win.draws.end)
         {
             draws[d].layer += prev_max + 1;
             new_max = max(new_max, draws[d].layer);
         }
-
+        
         prev_max = new_max;
     }
-
+    
     win_top_layer = len(windows);
     layer = 0;
 }
@@ -521,33 +521,33 @@ layout_peek_rect :: proc(using ctx: ^Context) -> Rect
 {
     rect := Rect{};
     container := curr_container(ctx);
-
+    
     rect.x = container.x + layout.pos.x;
     rect.y = container.y + layout.pos.y;
-
+    
     rect.w = f32(layout.widths[layout.curr_item]);
     rect.h = layout.size.y;
-
+    
     // Position relative to right for negative values
     if rect.w <= 0 do
         rect.w += container.x + container.w - rect.x;
-
+    
     // Adjust for spacing
     rect.x += f32(style.spacing);
     rect.y += f32(style.spacing);
     rect.w -= f32(style.spacing) * 2;
     rect.h -= f32(style.spacing) * 2;
-
+    
     return rect;
 }
 
 layout_rect :: proc(using ctx: ^Context) -> Rect
 {
     rect := layout_peek_rect(ctx);
-
+    
     // Advance layout position
     layout.pos.x += rect.w + f32(style.padding)*2;
-
+    
     layout.curr_item += 1;
     if layout.curr_item == layout.items
     {
@@ -555,17 +555,17 @@ layout_rect :: proc(using ctx: ^Context) -> Rect
         layout.pos.y += layout.size.y;
         layout.curr_item = 0;
     }
-
+    
     return rect;
 }
 
 text_rect :: proc(using ctx: ^Context, str: string) -> Rect
 {
     rect := Rect{};
-
+    
     rect.h = f32(style.text_height);
     rect.w = get_text_width(style.font, str, int(rect.h));
-
+    
     return rect;
 }
 
@@ -574,27 +574,27 @@ align_rect :: proc(using ctx: ^Context, bound, rect: Rect, opt: Options) -> Rect
     ret := Rect{};
     ret.w = rect.w;
     ret.h = rect.h;
-
+    
     bound := bound;
     bound.x += f32(style.padding);
     bound.y += f32(style.padding);
     bound.w -= f32(style.padding)*2;
     bound.h -= f32(style.padding)*2;
-
+    
     if .Right in opt do
         ret.x = bound.x+bound.w - rect.w;
     else if .Left in opt do
         ret.x = bound.x;
     else do // Center
         ret.x = bound.x + (bound.w - rect.w)/2;
-
+    
     if .Bottom in opt do
         ret.y = bound.y+bound.h - rect.h;
     else if .Top in opt do
         ret.y = bound.y;
     else do // Center
         ret.y = bound.y + (bound.h - rect.h)/2;
-
+    
     return ret;
 }
 
@@ -611,7 +611,7 @@ is_focus :: proc(using ctx: ^Context, lbl: string, icon: int) -> bool
 is_mouse_over :: proc(using ctx: ^Context, rect: Rect) -> bool
 {
     m := cursor;
-
+    
     return (rect.x <= m.x && m.x <= rect.x+rect.w &&
             rect.y <= m.y && m.y <= rect.y+rect.h);
 }
@@ -619,15 +619,15 @@ is_mouse_over :: proc(using ctx: ^Context, rect: Rect) -> bool
 update_focus :: proc(using ctx: ^Context, rect: Rect, id: u64, opt: Options)
 {
     mouse_over := is_mouse_over(ctx, rect);
-
+    
     if mouse_over && !mouse_down(ctx, 0) do
         hover = id;
-
+    
     if focus == id &&
         ((mouse_pressed(ctx, 0) && !mouse_over) ||
          (!mouse_down(ctx, 0) && .Hold_Focus notin opt)) do
-             focus = 0;
-
+        focus = 0;
+    
     if hover == id
     {
         if      !mouse_over           do hover = 0;
@@ -656,20 +656,20 @@ draw_border :: proc(using ctx: ^Context, rect: Rect, id: u64)
 draw_text :: proc(using ctx: ^Context, str: string, rect: Rect, color_id: Color_ID, opt: Options)
 {
     pos := [2]f32{};
-
+    
     pos.x = rect.x;
     pos.y = rect.y;
-
+    
     draw := add_draw(ctx);
     draw.layer = layer;
     draw.variant  =
         Draw_Text{
-            pos = pos,
-            size = rect.h,
-            color_id = color_id,
-            color = style.colors[color_id],
-            text = strings.clone(str),
-        };
+        pos = pos,
+        size = rect.h,
+        color_id = color_id,
+        color = style.colors[color_id],
+        text = strings.clone(str),
+    };
 }
 
 draw_rect :: proc(using ctx: ^Context, rect: Rect, id: u64, color_id: Color_ID, opt: Options)
@@ -681,16 +681,16 @@ draw_rect :: proc(using ctx: ^Context, rect: Rect, id: u64, color_id: Color_ID, 
         else if id == hover do color_id += Color_ID(1);
     }
     color := style.colors[color_id];
-
+    
     draw := add_draw(ctx);
     draw.layer = layer;
     draw.variant  =
         Draw_Rect{
-            rect = rect,
-            color = color,
-            color_id = color_id,
-        };
-
+        rect = rect,
+        color = color,
+        color_id = color_id,
+    };
+    
     if .Border in opt do
         draw_border(ctx, rect, id);
 }
@@ -699,7 +699,7 @@ next_draw :: proc(using ctx: ^Context, ret: ^Draw) -> bool
 {
     if draw_idx >= len(draws) do
         return false;
-
+    
     ret^ = draws[draw_idx];
     draw_idx += 1;
     return true;
@@ -715,18 +715,18 @@ label :: proc(using ctx: ^Context, str: string, opt: Options)
 button :: proc(using ctx: ^Context, lbl: string, icon: int, opt: Options) -> (res: Results)
 {
     id := get_id(lbl, icon);
-
+    
     rect := layout_rect(ctx);
-
+    
     base_layer := layer;
     // was_focus  := id == focus;
     update_focus(ctx, rect, id, {});
-
+    
     if last_focus == id && mouse_released(ctx, 0) && id == hover do
         res |= {.Submit};
-
+    
     draw_rect(ctx, rect, id, .Button, {.Border});
-
+    
     layer = base_layer+1;
     {
         lbl_text := text_rect(ctx, lbl);
@@ -734,18 +734,18 @@ button :: proc(using ctx: ^Context, lbl: string, icon: int, opt: Options) -> (re
         draw_text(ctx, lbl, aligned, .Text, opt);
     }
     layer = base_layer;
-
+    
     return res;
 }
 
 slider :: proc(using ctx: ^Context, label: string, value: ^$T, fmt_str: string, lower, upper, step: T, opt: Options) -> (res: Results) where intrinsics.type_is_numeric(T)
 {
     id := get_id(label, 0);
-
+    
     prev := value^;
     rect := layout_rect(ctx);
     update_focus(ctx, rect, id, opt);
-
+    
     tw := T(style.thumb_size);
     if id == focus && mouse_down(ctx, 0)
     {
@@ -759,15 +759,15 @@ slider :: proc(using ctx: ^Context, label: string, value: ^$T, fmt_str: string, 
         value^ += add;
     }
     value^ = clamp(value^, lower, upper);
-
+    
     if value^ != prev do
         res |= {.Update};
-
+    
     base_layer := layer;
-
+    
     // Draw Slider
     draw_rect(ctx, rect, id, .Base, opt ~ {.Border});
-
+    
     // Draw Thumb
     layer = base_layer+1;
     {
@@ -775,7 +775,7 @@ slider :: proc(using ctx: ^Context, label: string, value: ^$T, fmt_str: string, 
         thumb := Rect{rect.x + percentage * (rect.w-tw), rect.y, tw, rect.h};
         draw_rect(ctx, thumb, id, .Button, opt);
     }
-
+    
     // Draw value
     layer = base_layer+2;
     {
@@ -786,7 +786,7 @@ slider :: proc(using ctx: ^Context, label: string, value: ^$T, fmt_str: string, 
         draw_text(ctx, string(val_buf[:]), aligned, .Text, opt);
     }
     layer = base_layer;
-
+    
     return res;
 }
 
@@ -809,10 +809,10 @@ buffer_append :: proc(buf: ^Text_Buffer, str: string)
 _insert_string_at :: proc(buf: ^Text_Buffer, idx: int, str: string) -> int
 {
     slen := min(len(str), len(buf.backing)-buf.used);
-
+    
     copy(buf.backing[idx+slen:], buf.backing[idx:buf.used]);
     copy(buf.backing[idx:], str[:]);
-
+    
     buf.used += slen;
     
     return slen;
@@ -825,17 +825,17 @@ _remove_string_between :: proc(buf: ^Text_Buffer, start, end: int) -> int
     
     if start == end do
         return 0;
-
+    
     ret := end - start;
     if start > end
     {
         start, end = end, start;
         ret = 0;
     }
-
+    
     copy(buf.backing[start:], buf.backing[end:buf.used]);
     buf.used -= end - start;
-
+    
     return ret;
 }
 
@@ -857,7 +857,7 @@ _update_cursor :: proc(using ctx: ^Context, buf: ^Text_Buffer, change: int)
     {
         mark := text_box.mark;
         text_box.mark = -1;
-
+        
         if change == -1
         {
             text_box.cursor = min(text_box.cursor, mark);
@@ -869,10 +869,10 @@ _update_cursor :: proc(using ctx: ^Context, buf: ^Text_Buffer, change: int)
             return;
         }
     }
-
+    
     text_box.cursor += change;
     text_box.cursor = clamp(text_box.cursor, 0, buf.used);
-
+    
     if text_box.cursor == text_box.mark do
         text_box.mark = -1;
 }
@@ -895,7 +895,7 @@ _word_beg :: proc(buf: ^Text_Buffer, idx: int) -> int
         idx -= 1;
     if idx == 1 && char_is_alphanum(buf.backing[idx]) do
         idx -= 1;
-
+    
     return max(idx, 0);
 }
 
@@ -907,21 +907,21 @@ _word_end :: proc(buf: ^Text_Buffer, idx: int) -> int
         idx += 1;
     for idx < buf.used && char_is_alphanum(buf.backing[idx]) do
         idx += 1;
-
+    
     return min(idx, buf.used);
 }
 
 text_input :: proc(using ctx: ^Context, label: string, buf: ^Text_Buffer, opt: Options) -> (res: Results)
 {
     id := get_id(label, 0);
-
+    
     rect := layout_rect(ctx);
-
+    
     update_focus(ctx, rect, id, opt | {.Hold_Focus});
-
+    
     if id == hover do
         cursor_icon = .Bar;
-
+    
     cursor_start := text_box.cursor;
     content_rect: Rect;
     
@@ -932,7 +932,7 @@ text_input :: proc(using ctx: ^Context, label: string, buf: ^Text_Buffer, opt: O
             text_box.mark = buf.used > 0 ? 0 : -1;
             text_box.cursor = buf.used;
         }
-
+        
         if input_buf.used > 0
         {
             if text_box.mark != -1
@@ -942,7 +942,7 @@ text_input :: proc(using ctx: ^Context, label: string, buf: ^Text_Buffer, opt: O
             }
             text_box.cursor += _insert_string_at(buf, text_box.cursor, string(input_buf.backing[:input_buf.used]));
         }
-
+        
         // Backspace
         if key_repeat(ctx, .Backspace)
         {
@@ -979,21 +979,21 @@ text_input :: proc(using ctx: ^Context, label: string, buf: ^Text_Buffer, opt: O
             }
             text_box.mark = -1;
         }
-
+        
         // Enter
         if key_pressed(ctx, .Enter)
         {
             focus = 0;
             res |= {.Submit};
         }
-
+        
         // Cursor Movement
         if key_down(ctx, .LCtrl) && key_pressed(ctx, .A)
         {
             text_box.mark = 0;
             text_box.cursor = buf.used;
         }
-
+        
         if key_repeat(ctx, .Left)
         {
             change := -1;
@@ -1017,11 +1017,11 @@ text_input :: proc(using ctx: ^Context, label: string, buf: ^Text_Buffer, opt: O
             _update_cursor(ctx, buf, +buf.used);
         }
     }
-
+    
     // @Todo(Tyler): Track length of buf
     content_rect = text_rect(ctx, buffer_string(buf^));
     content_rect = align_rect(ctx, rect, content_rect, opt);
-
+    
     // Text-Selection with mouse
     if id == focus && mouse_down(ctx, 0) && buf.used > 0
     {
@@ -1037,7 +1037,7 @@ text_input :: proc(using ctx: ^Context, label: string, buf: ^Text_Buffer, opt: O
         index = max(index-1, 0);
         if cw > 0 && pos - cursor.x < (cursor.x - (pos-cw)) && index < buf.used do
             index += 1;
-
+        
         if mouse_pressed(ctx, 0)
         {
             text_box.cursor = index;
@@ -1049,9 +1049,9 @@ text_input :: proc(using ctx: ^Context, label: string, buf: ^Text_Buffer, opt: O
                 text_box.mark = text_box.cursor;
             text_box.cursor = index;
         }
-
+        
     }
-
+    
     // Scrolling Text
     cursor_pos := f32(0);
     offset_x   := f32(0);
@@ -1059,7 +1059,7 @@ text_input :: proc(using ctx: ^Context, label: string, buf: ^Text_Buffer, opt: O
     {
         offset_x = get_text_width(style.font, buffer_string(buf^)[:text_box.offset], style.text_height);
         content_rect.x -= offset_x;
-
+        
         cursor_pos = get_text_width(style.font, buffer_string(buf^)[:text_box.cursor], style.text_height);
         
         box_min := content_rect.x + offset_x;
@@ -1110,25 +1110,25 @@ text_input :: proc(using ctx: ^Context, label: string, buf: ^Text_Buffer, opt: O
             }
         }
     }
-
+    
     if cursor_start != text_box.cursor || (focus == id && last_focus != id) do
         text_box.cursor_last_updated = time;
-
+    
     base_layer := layer;
-
+    
     // Draw box
     draw_rect(ctx, rect, id, .Base, opt ~ {.Border});
-
+    
     // Draw text
     layer = base_layer+1;
     {
         draw_text(ctx, buffer_string(buf^), content_rect, .Text, opt);
     }
-
+    
     if id == focus
     {
         text_width := content_rect.w;
-
+        
         // Draw Mark
         if text_box.mark != -1
         {
@@ -1147,7 +1147,7 @@ text_input :: proc(using ctx: ^Context, label: string, buf: ^Text_Buffer, opt: O
             };
             draw_rect(ctx, mark, id, .Mark, {});
         }
-
+        
         // Draw cursor
         if math.sin(time*5) > 0 || // Blink
             time - text_box.cursor_last_updated < 0.4 // Display if recently updated
@@ -1161,7 +1161,7 @@ text_input :: proc(using ctx: ^Context, label: string, buf: ^Text_Buffer, opt: O
                 w = 2,
                 h = content_rect.h
             };
-
+            
             draw_rect(ctx, cursor, id, .Text, {});
         }
     }
@@ -1176,7 +1176,7 @@ number_input :: proc(using ctx: ^Context, lbl: string, value: ^$T, fmt_str: stri
     rect := layout_peek_rect(ctx);
     // was_focus := focus == id;
     update_focus(ctx, rect, id, opt | {.Hold_Focus});
-
+    
     
     vbuf: Text_Buffer;
     if focus == id
@@ -1199,12 +1199,12 @@ number_input :: proc(using ctx: ^Context, lbl: string, value: ^$T, fmt_str: stri
         // Show value if not active
         vbuf.backing = transmute([]byte)fmt.tprintf(fmt_str, value);
     }
-
+    
     res = text_input(ctx, lbl, &vbuf, opt);
-
+    
     if .Submit in res do
         util.read_fmt((^string)(&vbuf.backing), "%f", value);
-
+    
     return res;
 }
 
@@ -1216,7 +1216,7 @@ window_container :: proc(using ctx: ^Context, win: ^Window) -> Rect
     win.container.h -= f32(style.title_size*2 + style.padding*2);
     win.container.x += f32(style.padding);
     win.container.w -= f32(style.padding * 2);
-
+    
     return win.container;
 }
 
@@ -1225,7 +1225,7 @@ init_window :: proc(using ctx: ^Context, title: string, rect: Rect) -> (win: Win
     win.title = title;
     win.rect  = rect;
     win.open  = true;
-
+    
     return win;
 }
 
@@ -1241,12 +1241,12 @@ update_window_focus :: proc(using ctx: ^Context, win: ^Window, id: u64, opt: Opt
     
     if mouse_over && !mouse_down(ctx, 0) &&
         (window_hover == nil || window_hover.layer < win.layer) do
-            window_hover = win;
+        window_hover = win;
     
     if window_focus == win &&
         mouse_pressed(ctx, 0) && !mouse_over do
-            ctx.window_focus = nil;
-
+        ctx.window_focus = nil;
+    
     if ctx.window_hover == win
     {
         if !mouse_over do ctx.window_hover = nil;
@@ -1259,19 +1259,19 @@ window :: proc(using ctx: ^Context, win: ^Window, opt: Options) -> (res: Results
     id := get_id(win.title, 0);
     
     if !win.open do return;
-
+    
     push_container(ctx, window_container(ctx, win));
-
+    
     win.draws.start = len(draws);
     append(&windows, win);
-
+    
     title := win.rect;
     title.h = f32(style.title_size);
-
+    
     close := title;
     close.w = close.h;
     close.x += title.w - close.w;
-
+    
     // Handle hover/focus
     was_focus := window_focus == win;
     close_hover := false;
@@ -1280,10 +1280,10 @@ window :: proc(using ctx: ^Context, win: ^Window, opt: Options) -> (res: Results
     {
         if window_focus == win && !was_focus do
             bring_to_front(ctx, win);
-
+        
         // Temp labels for window elements
         temp_label: string;
-
+        
         // Handle title drag
         temp_label = fmt.tprintf("%s.__TITLE__", win.title);
         title_id := get_id(temp_label, 0);
@@ -1293,13 +1293,13 @@ window :: proc(using ctx: ^Context, win: ^Window, opt: Options) -> (res: Results
             win.rect.x += cursor.x - last_cursor.x;
             win.rect.y += cursor.y - last_cursor.y;
         }
-
+        
         // Handle close button
         temp_label = fmt.tprintf("%s.__CLOSE__", win.title);
         close_id := get_id(temp_label, 0);
         update_focus(ctx, close, close_id, {});
         close_hover = hover == close_id;
-
+        
         if last_focus == close_id && mouse_released(ctx, 0) && close_hover
         {
             window_focus = nil;
@@ -1307,22 +1307,22 @@ window :: proc(using ctx: ^Context, win: ^Window, opt: Options) -> (res: Results
             win.open = false;
         }
     }
-
+    
     base_layer := layer;
-
+    
     // Draw background
     draw_rect(ctx, win.rect, id, .Window, opt);
-
+    
     // Draw title
     {
         layer += 1;
         draw_rect(ctx, title, id, .Title, opt);
-
+        
         layer += 1;
         title_text := text_rect(ctx, win.title);
         title_text = align_rect(ctx, title, title_text, opt);
         draw_text(ctx, win.title, title_text, .Title_Text, opt);
-
+        
         // Draw close buttons
         // @Todo(Tyler): Icons
         layer += 1;
@@ -1331,7 +1331,7 @@ window :: proc(using ctx: ^Context, win: ^Window, opt: Options) -> (res: Results
             close_color = .Close;
         draw_rect(ctx, close, id, close_color, opt);
     }
-
+    
     layer = base_layer;
     res |= {.Active};
     return res;

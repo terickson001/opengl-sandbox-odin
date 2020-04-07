@@ -80,12 +80,12 @@ load :: proc(using c: ^Catalog, filepath: string, name := "") -> bool
         case texture_test(data, filepath, ext): asset = load_texture(data, filepath);
         case: return false;
     }
-
-    asset.file = strings.clone(filepath);
+    
+    asset.file = strings.clone(filepath, c.allocator);
     file_time, _ := os.last_write_time_by_name(filepath); // @todo(Tyler): Setup cross-platform file watch
     asset.time = u64(file_time);
-
-    alloc_name := strings.clone(name);
+    delete(data);
+    alloc_name := strings.clone(name, c.allocator);
     assets[alloc_name] = asset;
     return true;
 }
@@ -101,7 +101,7 @@ get :: proc(using c: ^Catalog, name: string) -> ^Asset
         return nil;
     }
     
-    return asset; 
+    return asset;
 }
 
 // Shader
@@ -120,7 +120,7 @@ shader_test :: proc(data: []byte, _: string, ext: string) -> bool
 load_shader :: proc(data: []byte, filepath: string) -> ^Asset
 {
     shader := render.load_shader_from_mem(data, filepath);
-
+    
     shader_asset := new(Asset);
     shader_asset.variant = Shader{shader, nil};
     
@@ -131,17 +131,17 @@ get_shader :: proc(using c: ^Catalog, name: string) -> ^render.Shader
 {
     asset := get(c, name);
     if asset == nil do return nil;
-
-    shader_asset, ok := asset.variant.(Shader);
-    if !ok
+    
+    shader_asset := &asset.variant.(Shader);
+    if shader_asset == nil
     {
         fmt.eprintf("Asset %q is not a shader\n", name);
         return nil;
     }
-    for k, v in shader_asset.program.uniforms
-    {
+    
+    for k, v in shader_asset.program.uniforms do
         fmt.eprintf(" UNIFORM[%q] @ %d\n", k, v);
-    }
+    
     return &shader_asset.program;
 }
 
@@ -160,10 +160,10 @@ mesh_test :: proc(data: []byte, _: string, ext: string) -> bool
 load_mesh :: proc(data: []byte, filepath: string) -> ^Asset
 {
     mesh := render.load_obj_from_mem(data);
-
+    
     mesh_asset := new(Asset);
     mesh_asset.variant = Mesh{mesh};
-
+    
     return mesh_asset;
 }
 
@@ -171,7 +171,7 @@ get_mesh :: proc(using c: ^Catalog, name: string) -> ^render.Mesh
 {
     asset := get(c, name);
     if asset == nil do return nil;
-
+    
     mesh_asset, ok := asset.variant.(Mesh);
     if !ok
     {
@@ -191,10 +191,10 @@ texture_test :: proc(data: []byte, _: string, _: string) -> bool
 load_texture :: proc(data: []byte, filepath: string) -> ^Asset
 {
     tex, info := render.image_texture(data);
-
+    
     tex_asset := new(Asset);
     tex_asset.variant = Texture{tex, info};
-
+    
     return tex_asset;
 }
 
@@ -202,7 +202,7 @@ get_texture :: proc(using c: ^Catalog, name: string) -> ^u32
 {
     asset := get(c, name);
     if asset == nil do return nil;
-
+    
     tex_asset, ok := asset.variant.(Texture);
     if !ok
     {
