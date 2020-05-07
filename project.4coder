@@ -3,6 +3,9 @@ project_name = "Opengl Sandbox";
 
 patterns = {
 "*.odin",
+"*.glsl",
+"*.fs",
+"*.vs",
 "*.sh",
 "*.4coder",
 "*.txt",

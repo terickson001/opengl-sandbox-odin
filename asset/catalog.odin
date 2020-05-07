@@ -64,7 +64,7 @@ load :: proc(using c: ^Catalog, filepath: string, name := "") -> bool
     name := name;
     
     ext := util.ext(filepath);
-    if name == "" do name = util.name(filepath);
+    if name == "" do name = util.base(filepath);
     data, ok := os.read_entire_file(filepath);
     if !ok
     {
@@ -110,7 +110,7 @@ shader_test :: proc(data: []byte, _: string, ext: string) -> bool
 {
     switch ext
     {
-        case "gl", "glsl", "fs", "vs", "gs": return true;
+        case "gl", "glsl": return true;
         case "": return false; // @todo(Tyler): Checks based on file contents
         case: return false;
     }
@@ -138,9 +138,6 @@ get_shader :: proc(using c: ^Catalog, name: string) -> ^render.Shader
         fmt.eprintf("Asset %q is not a shader\n", name);
         return nil;
     }
-    
-    for k, v in shader_asset.program.uniforms do
-        fmt.eprintf(" UNIFORM[%q] @ %d\n", k, v);
     
     return &shader_asset.program;
 }

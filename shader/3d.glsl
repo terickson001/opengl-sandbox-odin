@@ -18,11 +18,11 @@ layout(location = 5) in mat4 M;
     vec2 uv;
     vec3 position_m;
     vec3 position_mv;
-
+    
     vec3 normal_mv;
     vec3 eye_direction_mv;
     vec3 light_direction_mv;
-
+    
     vec3 eye_direction_tbn;
     vec3 light_direction_tbn;
 }
@@ -37,8 +37,13 @@ uniform bool flatten;
 void main()
 {
     mat4 MV = V*M;
-
+    
     vec3 position = vertex_position;
+    /*
+        vec3 pixelated = round(position*6)/6;
+        position = pixelated;
+        */
+    
     if (flatten)
     {
         // vec3 plane_normal = normalize((inverse(V) * vec4(0, 0, 0, 1)).xyz);
@@ -47,11 +52,10 @@ void main()
         vec3 plane_normal = (inverse(V) * vec4(0, 0, -1, 0)).xyz * vec3(1,0,1);
         plane_normal = normalize((inverse(M) * vec4(plane_normal, 0)).xyz);
         
-        vec3 flattened = vertex_position - dot(vertex_position, plane_normal)*plane_normal*0.98;
-        position = flattened; 
+        vec3 flattened = position - dot(position, plane_normal)*plane_normal*0.98;
+        position = flattened;
     }
-
-    // vec3 pixelated = round(position*6)/6;
+    
     
     // Position of the vertex, in worldspace
     vert.position_m =  (M * vec4(position,1)).xyz;
@@ -59,7 +63,7 @@ void main()
     // Vector from vertex to camera, in camera space
     vec3 vertex_position_mv = (MV * vec4(position, 1)).xyz;
     vert.eye_direction_mv = vec3(0, 0, 0) - vertex_position_mv;
-
+    
     // Vector from vertex to light, in camera space
     vec3 light_position_mv = (V * vec4(light_position_m, 1)).xyz;
     vert.light_direction_mv = light_position_mv + vert.eye_direction_mv;
@@ -68,16 +72,16 @@ void main()
     vert.normal_mv    = transpose(inverse(MV3x3)) * normalize(vertex_normal);
     vec3 tangent_mv   = MV3x3 * normalize(vertex_tangent);
     vec3 bitangent_mv = MV3x3 * normalize(vertex_bitangent);
-
+    
     mat3 TBN = transpose(mat3(
-        tangent_mv,
-        bitangent_mv,
-        vert.normal_mv
-    ));
-
+                              tangent_mv,
+                              bitangent_mv,
+                              vert.normal_mv
+                              ));
+    
     vert.light_direction_tbn = TBN * vert.light_direction_mv;
     vert.eye_direction_tbn   = TBN * vert.eye_direction_mv;
-
+    
     // UV of the vertex
     vert.uv = vertex_uv;
     
@@ -107,9 +111,9 @@ void main()
     vec3 material_diffuse_color = texture(diffuse_sampler, frag.uv).rgb;
     vec3 material_ambient_color = 0.3f * material_diffuse_color;
     vec3 material_specular_color = texture(specular_sampler, frag.uv).rgb * specularity;
-
+    
     float dist = length(light_position_m - frag.position_m);
-
+    
     vec3 n = normalize(texture(normal_sampler, vec2(frag.uv.x, frag.uv.y)).rgb*2.0 - 1.0);
     vec3 l = normalize(frag.light_direction_tbn);
     vec3 E = normalize(frag.eye_direction_tbn);
@@ -117,8 +121,8 @@ void main()
     vec3 R = reflect(-l, n);
     float cos_theta = clamp(dot(n, l), 0, 1);
     float cos_alpha = clamp(dot(E, R), 0, 1);
-
-    color = 
+    
+    color =
         // Ambient : simulates indirect lighting
         material_ambient_color +
         // Diffuse : "color" of the object

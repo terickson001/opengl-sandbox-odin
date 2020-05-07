@@ -25,8 +25,6 @@ Shader :: struct
 
 set_uniform :: proc(using s: ^Shader, name: string, val: $T)
 {
-    for k, v in s.uniforms do
-        fmt.eprintf("   UNIFORM[%q] @ %d\n", k, v);
     location, found := s.uniforms[name];
     if !found
     {
@@ -66,30 +64,7 @@ set_uniform :: proc(using s: ^Shader, name: string, val: $T)
         else when N == 3 { temp := val; gl.UniformMatrix3fv(location, 1, gl.FALSE, &temp[0][0]); }
         else when N == 4 { temp := val; gl.UniformMatrix4fv(location, 1, gl.FALSE, &temp[0][0]); }
     }
-    fmt.printf("UNIFORM SET\n");
 }
-
-/*
-uniform :: struct
-{
-    name: string,
-    location: i32,
-    type: typeid,
-}
-
-Buffer :: struct
-{
-    name: string,
-    location: i32,
-    type: typeid,
-}
-
-Shader_Interface :: struct
-{
-    uniforms: map[string]Uniform,
-    buffers: map[string]Buffer,
-}
-*/
 
 Shader_Kind :: enum
 {
