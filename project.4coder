@@ -25,15 +25,15 @@ load_paths = {
 command_list = {
  { .name = "Run Debug",
    .out = "*compilation*", .footer_panel = true, .save_dirty_files = true,
-   .cmd = { {"odin run . -debug", .os ="win"},
-            {"odin run . -debug", .os ="linux"},
-            {"odin run . -debug", .os ="mac"  }, }, },
+   .cmd = { {"odin run . -opt:0 -debug", .os ="win"},
+            {"odin run . -opt:0 -debug", .os ="linux"},
+            {"odin run . -opt:0 -debug", .os ="mac"  }, }, },
 
  { .name = "Build Debug",
    .out = "*compilation*", .footer_panel = true, .save_dirty_files = true,
-   .cmd = { {"odin build . -debug", .os ="win"},
-            {"odin build . -debug", .os ="linux"},
-            {"odin build . -debug", .os ="mac"  }, }, },
+   .cmd = { {"odin build . -opt:0 -debug", .os ="win"},
+            {"odin build . -opt:0 -debug", .os ="linux"},
+            {"odin build . -opt:0 -debug", .os ="mac"  }, }, },
 
 { .name = "Run Release",
    .out = "*compilation*", .footer_panel = true, .save_dirty_files = true,
