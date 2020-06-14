@@ -27,21 +27,21 @@ color_texture :: proc(color: [4]f32, normalize: bool) -> Texture
     t := Texture{};
     gl.GenTextures(1, &t.diffuse);
     gl.BindTexture(gl.TEXTURE_2D, t.diffuse);
-
+    
     scale := byte(normalize ? 255 : 1);
     c: [4]byte;
     for component, i in color do c[i] = byte(component)*scale;
     gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, &c[0]);
-
+    
     gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
     gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
     gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.BindTexture(gl.TEXTURE_2D, 0);
-
+    
     t.normal, _   = image_texture("./res/normal_default.png");
     t.specular, _ = image_texture("./res/specular_default.png");
-
+    
     t.info.width  = 1;
     t.info.height = 1;
     t.info.type   = gl.TEXTURE_2D;
@@ -54,7 +54,7 @@ texture_palette :: proc(colors: [][4]f32, normalize: b32) -> Texture
     t := Texture{};
     gl.GenTextures(1, &t.diffuse);
     gl.BindTexture(gl.TEXTURE_2D, t.diffuse);
-
+    
     size := 1;
     for len(colors) > size*size do
         size = size *  2;
@@ -68,7 +68,7 @@ texture_palette :: proc(colors: [][4]f32, normalize: b32) -> Texture
         data[i*4+2] = scale * byte(c.b);
         data[i*4+3] = scale * byte(c.a);
     }
-
+    
     gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, i32(size), i32(size), 0, gl.RGBA, gl.UNSIGNED_BYTE, &data[0]);
     delete(data);
     
@@ -81,7 +81,7 @@ texture_palette :: proc(colors: [][4]f32, normalize: b32) -> Texture
     
     t.normal, _   = image_texture("./res/normal_default.png");
     t.specular, _ = image_texture("./res/specular_default.png");
-
+    
     t.info.width  = u32(size);
     t.info.height = u32(size);
     t.info.type   = gl.TEXTURE_2D;
@@ -89,7 +89,7 @@ texture_palette :: proc(colors: [][4]f32, normalize: b32) -> Texture
     return t;
 }
 
-texture_palette_index :: proc(palette: ^Texture, i: int) -> [2]f32
+texture_palette_index :: proc(palette: Texture, i: int) -> [2]f32
 {
     s := int(palette.info.width);
     coord := [2]f32{f32(i%s), f32(i/s)};
@@ -116,43 +116,43 @@ image_texture_from_image :: proc(img: image.Image) -> (u32, Texture_Info)
     /*     } */
     /*     delete(swap); */
     /* } */
-
+    
     format := u32(gl.RGBA);
     iformat := u32(gl.RGBA8);
     
     switch img.format
     {
-    case .RGB:
+        case .RGB:
         format = gl.RGB;
         iformat = img.depth == 16 ? gl.RGB16 : gl.RGB8;
-    case .RGBA:
+        case .RGBA:
         format = gl.RGBA;
         iformat = img.depth == 16 ? gl.RGBA16 : gl.RGBA8;
-    case .GRAY:
+        case .GRAY:
         format = gl.RED;
         iformat = img.depth == 16 ? gl.R16 : gl.R8;
-    case .GRAYA:
+        case .GRAYA:
         format = gl.RG;
         iformat = img.depth == 16 ? gl.RG16 : gl.RG8;
     }
-
+    
     type := u32(img.depth == 16 ? gl.UNSIGNED_SHORT : gl.UNSIGNED_BYTE);
     
     texture_id: u32;
     gl.GenTextures(1, &texture_id);
     gl.BindTexture(gl.TEXTURE_2D, texture_id);
-
+    
     gl.TexStorage2D(gl.TEXTURE_2D, 1, u32(iformat), i32(img.width), i32(img.height));
     gl.TexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, i32(img.width), i32(img.height), format, type, &img.data[0]);
-
+    
     gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
     gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
     gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST_MIPMAP_LINEAR);
     gl.GenerateMipmap(gl.TEXTURE_2D);
-
+    
     gl.BindTexture(gl.TEXTURE_2D, 0);
-
+    
     return texture_id, {img.width, img.height, gl.TEXTURE_2D};
 }
 
@@ -168,21 +168,21 @@ image_texture_from_file :: proc(filepath: string) -> (u32, Texture_Info)
 {
     img := image.load(filepath);
     defer delete(img.data);
-
+    
     return image_texture_from_image(img);
 }
 
 load_texture :: proc(diff: string, norm := "", spec := "") -> Texture
 {
     t := Texture{};
-
+    
     t.diffuse, t.info = image_texture(diff);
     if norm != "" do t.normal, _ = image_texture(norm);
     else          do t.normal, _ = image_texture("./res/normal_default.png");
-
+    
     if spec != "" do t.specular, _ = image_texture(spec);
     else          do t.specular, _ = image_texture("./res/specular_default.png");
-
+    
     return t;
 }
 
@@ -191,11 +191,11 @@ activate_texture :: proc(s: ^Shader, t: ^Texture)
     gl.ActiveTexture(gl.TEXTURE0);
     gl.BindTexture(gl.TEXTURE_2D, t.diffuse);
     gl.Uniform1i(s.uniforms["diffuse_sampler"], 0);
-
+    
     gl.ActiveTexture(gl.TEXTURE1);
     gl.BindTexture(gl.TEXTURE_2D, t.normal);
     gl.Uniform1i(s.uniforms["normal_sampler"], 1);
-
+    
     gl.ActiveTexture(gl.TEXTURE2);
     gl.BindTexture(gl.TEXTURE_2D, t.specular);
     gl.Uniform1i(s.uniforms["specular_sampler"], 2);
@@ -205,10 +205,10 @@ disable_texture :: proc(s: ^Shader, t: ^Texture)
 {
     gl.ActiveTexture(gl.TEXTURE0);
     gl.BindTexture(gl.TEXTURE_2D, 0);
-
+    
     gl.ActiveTexture(gl.TEXTURE1);
     gl.BindTexture(gl.TEXTURE_2D, 0);
-
+    
     gl.ActiveTexture(gl.TEXTURE2);
     gl.BindTexture(gl.TEXTURE_2D, 0);
 }

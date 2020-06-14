@@ -23,7 +23,7 @@ Field_Info :: struct
     size        : int,
     ascent      : f32,
     descent     : f32,
-
+    
     metrics     : [96]Glyph_Metrics,
 }
 
@@ -61,7 +61,7 @@ load_msdf_metrics :: proc(filepath: string) -> (info: Field_Info)
         fmt.eprintf("%s: Couldn't find font size in metrics file\n", filepath);
         os.exit(1);
     }
-
+    
     m: Glyph_Metrics;
     info.ascent  = f32(-info.size);
     info.descent = f32(+info.size);
@@ -78,26 +78,26 @@ load_msdf_metrics :: proc(filepath: string) -> (info: Field_Info)
         info.descent = min(info.descent, m.y0);
         info.metrics[i] = m;
     }
-
+    
     return info;
 }
 
 load_font :: proc(name: string) -> (font: Font)
 {
     gl.ActiveTexture(gl.TEXTURE0);
-
+    
     font.texture.info.width = 96;
     font.texture.info.height = 96;
-
+    
     gl.GenTextures(1, &font.texture.diffuse);
     gl.BindTexture(gl.TEXTURE_2D_ARRAY, font.texture.diffuse);
     gl.TexStorage3D(gl.TEXTURE_2D_ARRAY, 1, gl.RGBA8, 96, 96, 96);
-
+    
     for i in 32..<128
     {
         filepath := fmt.tprintf("%s_msdf/%d.png", name, i);
         img := image.load_from_file(filepath, .RGBA);
-
+        
         if img.data == nil
         {
             fmt.eprintf("Could not open glyph for font %q\n", name);
@@ -107,9 +107,9 @@ load_font :: proc(name: string) -> (font: Font)
                          0, 0, 0, i32(i-32), 96, 96, 1, gl.RGBA, gl.UNSIGNED_BYTE, &img.data[0]);
         delete(img.data);
     }
-
+    
     gl.TexParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-
+    
     font.ctx = make_context(2, 0);
     
     filepath := fmt.tprintf("%s_msdfmetrics", name);
@@ -130,12 +130,12 @@ get_text_width :: proc(font: Font, text: string, size: int) -> (width: f32)
 {
     if text == "" do
         return;
-
+    
     scale := f32(size) / (font.info.ascent - font.info.descent);
     for c in text do
         if 32 <= c && c < 128 do
-            width += font.info.metrics[c-32].advance * scale;
-
+        width += font.info.metrics[c-32].advance * scale;
+    
     return width;
 }
 
@@ -143,12 +143,12 @@ draw_text :: proc(s: ^Shader, font: ^Font, text: string, pos: [2]f32, size: int)
 {    
     if len(text) == 0 do
         return;
-
+    
     pos := pos;
-
+    
     vertices := make([dynamic][2]f32);
     uvs      := make([dynamic][3]f32);
-
+    
     defer
     {
         delete(vertices);
@@ -160,24 +160,24 @@ draw_text :: proc(s: ^Shader, font: ^Font, text: string, pos: [2]f32, size: int)
     {
         if 32 > c || c > 128 do
             continue;
-
+        
         metrics := font.info.metrics[c-32];
         if c == 32
         {
             pos.x += metrics.advance * scale;
             continue;
         }
-
+        
         x0 := pos.x + (metrics.x0 * scale);
         y0 := pos.y + (metrics.y0 * scale);
         x1 := pos.x + (metrics.x1 * scale);
         y1 := pos.y + (metrics.y1 * scale);
-
+        
         ux0 := metrics.x0 / f32(font.info.size);
         uy0 := metrics.y0 / f32(font.info.size);
         ux1 := metrics.x1 / f32(font.info.size);
         uy1 := metrics.y1 / f32(font.info.size);
-
+        
         
         append(&vertices, [2]f32{x0, y0});
         append(&vertices, [2]f32{x1, y0});
@@ -185,28 +185,28 @@ draw_text :: proc(s: ^Shader, font: ^Font, text: string, pos: [2]f32, size: int)
         append(&vertices, [2]f32{x1, y1});
         append(&vertices, [2]f32{x0, y1});
         append(&vertices, [2]f32{x1, y0});
-
+        
         append(&uvs, [3]f32{ux0, uy0, f32(c-32)});
         append(&uvs, [3]f32{ux1, uy0, f32(c-32)});
         append(&uvs, [3]f32{ux0, uy1, f32(c-32)});
         append(&uvs, [3]f32{ux1, uy1, f32(c-32)});
         append(&uvs, [3]f32{ux0, uy1, f32(c-32)});
         append(&uvs, [3]f32{ux1, uy0, f32(c-32)});
-
+        
         pos.x += metrics.advance * scale;
     }
-
+    
     gl.UseProgram(s.id);
-
+    
     bind_context(&font.ctx);
     update_vbo(&font.ctx, 0, vertices[:]);
     update_vbo(&font.ctx, 1, uvs[:]);
-
+    
     gl.Uniform2i(s.uniforms["resolution"], 1024, 768);
-
+    
     gl.ActiveTexture(gl.TEXTURE0);
     gl.BindTexture(gl.TEXTURE_2D_ARRAY, font.texture.diffuse);
-
+    
     /* gl.Enable(gl.BLEND); */
     /* gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); */
     gl.DrawArrays(gl.TRIANGLES, 0, i32(len(vertices)));
