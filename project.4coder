@@ -35,6 +35,12 @@ command_list = {
             {"odin build . -opt:0 -debug", .os ="linux"},
             {"odin build . -opt:0 -debug", .os ="mac"  }, }, },
 
+{ .name = "Run",
+   .out = "*compilation*", .footer_panel = true, .save_dirty_files = true,
+   .cmd = { {"./opengl", .os ="win"},
+            {"./opengl", .os ="linux"},
+            {"./opengl", .os ="mac"  }, }, },
+
 { .name = "Run Release",
    .out = "*compilation*", .footer_panel = true, .save_dirty_files = true,
    .cmd = { {"odin run . -opt:3", .os ="win"},
@@ -48,7 +54,8 @@ command_list = {
             {"odin build . -opt:3", .os ="mac"  }, }, },
 };
 
-fkey_command[1] = "Run Debug";
-fkey_command[2] = "Build Debug";
-fkey_command[3] = "Run Release";
-fkey_command[4] = "Build Release";
+fkey_command[1] = "Build Debug";
+fkey_command[2] = "Run"; 
+fkey_command[3] = "Run Debug";
+fkey_command[4] = "Run Release";
+fkey_command[5] = "Build Release";

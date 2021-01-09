@@ -2,7 +2,6 @@ package util
 
 import "core:fmt"
 import "core:strings"
-import "core:strconv"
 import "core:os"
 
 char_is_alpha :: proc(c: u8) -> bool
@@ -30,12 +29,14 @@ read_char :: proc(str: ^string, ret: ^byte) -> bool
     c := byte(0);
     defer if ret != nil do ret^ = c;
     
-    if len(str^) == 0 do
+    if len(str^) == 0 
+    {
         return false;
-
+    }
+    
     c = str[0];
     str^ = str[1:];
-
+    
     return true;
 }
 
@@ -43,11 +44,13 @@ read_line :: proc(str: ^string, ret: ^string) -> bool
 {
     line := string{};
     defer if ret != nil do ret^ = line;
-
+    
     idx := 0;
-    for idx < len(str) && str[idx] != '\n' do
+    for idx < len(str) && str[idx] != '\n' 
+    {
         idx += 1;
-
+    }
+    
     line = str[:idx];
     if idx == len(str)
     {
@@ -70,16 +73,22 @@ read_ident :: proc(str: ^string, ret: ^string) -> bool
 {
     ret^ = string{};
     idx := 0;
-
-    if !char_is_ident(str[idx]) do
-        return false;
     
-    for char_is_ident(str[idx]) || str[idx] == '-' do
-        idx += 1;
-
-    if idx == 0 do
+    if !char_is_ident(str[idx]) 
+    {
         return false;
-
+    }
+    
+    for idx < len(str) && (char_is_ident(str[idx]) || str[idx] == '-') 
+    {
+        idx += 1;
+    }
+    
+    if idx == 0 
+    {
+        return false;
+    }
+    
     ret^ = str[:idx];
     str^ = str[idx:];
     return true;
@@ -89,20 +98,24 @@ read_string :: proc(str: ^string, ret: ^string) -> bool
 {
     ret^ = string{};
     idx := 0;
-
-    if str[idx] != '"' && str[idx] != '\'' do
+    
+    if str[idx] != '"' && str[idx] != '\'' 
+    {
         return false;
-
+    }
+    
     quote := str[idx];
     idx += 1;
-
+    
     for str[idx] != quote
     {
-        if str[idx] == '\\' do
+        if str[idx] == '\\' 
+        {
             idx += 1;
+        }
         idx += 1;
     }
-
+    
     ret^ = str[1:idx];
     str^ = str[idx+1:];
     
@@ -113,24 +126,28 @@ read_filepath :: proc(str: ^string, ret: ^string) -> bool
 {
     ret^ = string{};
     idx := 0;
-
+    
     char_is_path :: proc(c: u8) -> bool
     {
         return char_is_ident(c) || os.is_path_separator(rune(c)) || c == '.';
     }
-    if !char_is_path(str[idx]) do
+    if !char_is_path(str[idx]) 
+    {
         return false;
-
+    }
+    
     for char_is_path(str[idx])
     {
-        if str[idx] == '\\' do
+        if str[idx] == '\\' 
+        {
             idx += 1;
+        }
         idx += 1;
     }
-
+    
     ret^ = str[:idx];
     str^ = str[idx:];
-
+    
     return true;
 }
 
@@ -142,15 +159,42 @@ read_whitespace :: proc(str: ^string, newline := false) -> bool
     {
         switch str[idx]
         {
-        case '\t', '\v', '\f', ' ': break;
-        case '\n', '\r': if !newline do break loop;
-        case: break loop;
+            case '\t', '\v', '\f', ' ': break;
+            case '\n', '\r': if !newline do break loop;
+            case: break loop;
         }
         idx += 1;
     }
-
-    if idx > 0 do
+    
+    if idx > 0 
+    {
         str^ = str[idx:];
+    }
+    
+    return true;
+}
+
+read_non_whitespace :: proc(str: ^string, ret: ^string) -> bool
+{
+    ret^ = string{};
+    idx := 0;
+    
+    loop: for idx+1 < len(str)
+    {
+        switch str[idx]
+        {
+            case '\t', '\v', '\f', ' ', '\n', '\r': break loop;
+            case: idx += 1;
+        }
+    }
+    
+    if idx == 0 
+    {
+        return false;
+    }
+    
+    ret^ = str[:idx];
+    str^ = str[idx:];
     
     return true;
 }
@@ -158,7 +202,7 @@ read_whitespace :: proc(str: ^string, newline := false) -> bool
 read_custom_bool :: proc(str: ^string, true_str: string, false_str: string, ret: ^bool) -> bool
 {
     ret^ = false;
-
+    
     if strings.has_prefix(str^, true_str)
     {
         ret^ = true;
@@ -173,17 +217,19 @@ read_custom_bool :: proc(str: ^string, true_str: string, false_str: string, ret:
     {
         return false;
     }
-
+    
     return true;
 }
 
 read_surround :: proc(str: ^string, open, close: byte, ret: ^string) -> bool
 {
     ret^ = string{};
-
+    
     idx := 0;
-    if str[idx] != open do
+    if str[idx] != open 
+    {
         return false;
+    }
     
     idx += 1;
     level := 1;
@@ -194,7 +240,7 @@ read_surround :: proc(str: ^string, open, close: byte, ret: ^string) -> bool
         idx += 1;
         if idx >= len(str) do return false;
     }
-
+    
     ret^ = str[:idx];
     str^ = str[idx:];
     
@@ -204,9 +250,11 @@ read_surround :: proc(str: ^string, open, close: byte, ret: ^string) -> bool
 read_int :: proc(str: ^string, ret: $T/^$E) -> bool
 {
     ret^ = 0;
-
-    if len(str) == 0 do
+    
+    if len(str) == 0 
+    {
         return false;
+    }
     
     sign := int(1);
     idx := 0;
@@ -216,18 +264,20 @@ read_int :: proc(str: ^string, ret: $T/^$E) -> bool
         sign = -1;
         idx += 1;
     }
-
+    
     for idx < len(str) && '0' <= str[idx] && str[idx] <= '9'
     {
         ret^ *= 10;
         ret^ += E(str[idx] - '0');
         idx += 1;
     }
-
+    
     ret^ *= E(sign);
-
-    if idx == 0 do
+    
+    if idx == 0 
+    {
         return false;
+    }
     
     str^ = str[idx:];
     return true;
@@ -236,10 +286,12 @@ read_int :: proc(str: ^string, ret: $T/^$E) -> bool
 read_float :: proc(str: ^string, ret: $T/^$E) -> bool
 {
     ret^ = 0;
-
-    if len(str) == 0 do
+    
+    if len(str) == 0 
+    {
         return false;
-
+    }
+    
     sign := E(1);
     idx := 0;
     
@@ -248,16 +300,16 @@ read_float :: proc(str: ^string, ret: $T/^$E) -> bool
         sign = -1;
         idx += 1;
     }
-
+    
     for idx < len(str) && '0' <= str[idx] && str[idx] <= '9'
     {
         ret^ *= 10;
         ret^ += E(str[idx] - '0');
         idx += 1;
     }
-
+    
     ret^ *= E(sign);
-
+    
     if idx < len(str) && str[idx] == '.'
     {
         frac: E = 0;
@@ -271,7 +323,7 @@ read_float :: proc(str: ^string, ret: $T/^$E) -> bool
         }
         ret^ += frac * sign;
     }
-
+    
     str^ = str[idx:];
     return true;
 }
@@ -282,9 +334,11 @@ read_any :: proc(str: ^string, arg: any, verb: u8 = 'v') -> bool
     
     switch verb
     {
-    case 'v':
-        if arg == nil do
+        case 'v':
+        if arg == nil 
+        {
             panic("ERROR: Format specifier '%v' cannot be non-capturing");
+        }
         
         switch kind in arg
         {
@@ -310,22 +364,22 @@ read_any :: proc(str: ^string, arg: any, verb: u8 = 'v') -> bool
             
             case: fmt.eprintf("Invalid type %T\n", kind);
         }
-
-    case 'f':
+        
+        case 'f':
         if arg == nil
         {
             temp: f64;
             return read_float(str, &temp);
         }
-            
+        
         switch kind in arg
         {
             case ^f32:  ok = read_float(str, kind);
             case ^f64:  ok = read_float(str, kind);
             case: fmt.eprintf("Invalid type %T for specifier %%%c\n", kind, verb);
         }
-
-    case 'd':
+        
+        case 'd':
         if arg == nil
         {
             temp: i64;
@@ -340,7 +394,7 @@ read_any :: proc(str: ^string, arg: any, verb: u8 = 'v') -> bool
             case ^i64:  ok = read_int(str, kind);
             case ^i128: ok = read_int(str, kind);
             case ^int:  ok = read_int(str, kind);
-
+            
             case ^u8:   ok = read_int(str, kind);
             case ^u16:  ok = read_int(str, kind);
             case ^u32:  ok = read_int(str, kind);
@@ -350,18 +404,20 @@ read_any :: proc(str: ^string, arg: any, verb: u8 = 'v') -> bool
             
             case: fmt.eprintf("Invalid type %T for specifier %%%c\n", kind, verb);
         }
-
-    case 'c':
-        if arg == nil do
+        
+        case 'c':
+        if arg == nil 
+        {
             return read_char(str, nil);
-
+        }
+        
         switch kind in arg
         {
             case ^u8: ok = read_char(str, kind);
             case: fmt.eprintf("Invalid type %T for specifier %%%c\n", kind, verb);
         }
         
-    case 'q':
+        case 'q':
         if arg == nil
         {
             temp: string;
@@ -371,11 +427,11 @@ read_any :: proc(str: ^string, arg: any, verb: u8 = 'v') -> bool
         switch kind in arg
         {
             case ^string: ok = read_string(str, kind);
-
+            
             case: fmt.eprintf("Invalid type %T for specifier %%%c\n", kind, verb);
         }
-
-    case 's':
+        
+        case 's':
         if arg == nil
         {
             temp: string;
@@ -385,31 +441,45 @@ read_any :: proc(str: ^string, arg: any, verb: u8 = 'v') -> bool
         switch kind in arg
         {
             case ^string: ok = read_ident(str, kind);
-
+            
             case: fmt.eprintf("Invalid type %T for specifier %%%c\n", kind, verb);
         }
-
-    case 'F':
+        
+        case 'W':
+        if arg == nil
+        {
+            temp: string;
+            return read_non_whitespace(str, &temp);
+        }
+        
+        switch kind in arg
+        {
+            case ^string: ok = read_non_whitespace(str, kind);
+            
+            case: fmt.eprintf("Invalid type %T for specifier %%%c\n", kind, verb);
+        }
+        
+        case 'F':
         if arg == nil
         {
             temp: string;
             return read_filepath(str, &temp);
         }
-
+        
         switch kind in arg
         {
             case ^string: ok = read_filepath(str, kind);
-
+            
             case: fmt.eprintf("Invalid type %T for specifier %%%c\n", kind, verb);
         }
-
-    case '_':
+        
+        case '_':
         ok = read_whitespace(str, false);
-
-    case '>':
+        
+        case '>':
         ok = read_whitespace(str, true);
-
-    case: fmt.eprintf("Invalid format specifier %%%c\n", verb);
+        
+        case: fmt.eprintf("Invalid format specifier %%%c\n", verb);
     }
     
     return ok;
@@ -421,8 +491,10 @@ read_types :: proc(str: ^string, args: ..any) -> bool
     for v in args
     {
         ok = read_any(str, v);
-        if len(str) > 0 do
+        if len(str) > 0 
+        {
             str^ = strings.trim_left_space(str^);
+        }
         if !ok do return false;
     }
     return true;
@@ -431,7 +503,7 @@ read_types :: proc(str: ^string, args: ..any) -> bool
 read_fmt :: proc(str: ^string, fmt_str: string, args: ..any) -> bool
 {
     ok: bool;
-
+    
     sidx := 0;
     fidx := 0;
     aidx := 0;
@@ -456,21 +528,23 @@ read_fmt :: proc(str: ^string, fmt_str: string, args: ..any) -> bool
             }
             else
             {
-                if sidx > 0 do
+                if sidx > 0 
+                {
                     str^ = str[sidx:];
+                }
                 return false;
             }
         }
-
+        
         /* if aidx >= len(args) do */
         /*     return false; */
-
+        
         str^ = str[sidx:];
         sidx = 0;
         fidx += 1; // %
-
-
-
+        
+        
+        
         capture := true;
         if fmt_str[fidx] == '^' // %^s (non-capturing)
         {
@@ -479,28 +553,31 @@ read_fmt :: proc(str: ^string, fmt_str: string, args: ..any) -> bool
         }
         
         arg: any = nil;
-        if capture && aidx < len(args) do
+        if capture && aidx < len(args) 
+        {
             arg = args[aidx];
+        }
         switch fmt_str[fidx]
         {
-        case 'v': fallthrough;
-        case 'f': fallthrough;
-        case 'd': fallthrough;
-        case 'c': fallthrough;
-        case 'q': fallthrough;
-        case 's': fallthrough;
-        case 'F': fallthrough;
-        case 'b':
+            case 'v': fallthrough;
+            case 'f': fallthrough;
+            case 'd': fallthrough;
+            case 'c': fallthrough;
+            case 'q': fallthrough;
+            case 's': fallthrough;
+            case 'F': fallthrough;
+            case 'W': fallthrough;
+            case 'b':
             ok = read_any(str, arg, fmt_str[fidx]);
             if capture do aidx += 1;
             fidx += 1;
-
-        case '_': fallthrough;
-        case '>':
+            
+            case '_': fallthrough;
+            case '>':
             ok = read_any(str, nil, fmt_str[fidx]);
             fidx += 1;
-
-        case 'B':
+            
+            case 'B':
             fmt_copy := fmt_str[fidx+1:];
             true_str: string;
             false_str: string;
@@ -512,14 +589,14 @@ read_fmt :: proc(str: ^string, fmt_str: string, args: ..any) -> bool
             
             switch kind in arg
             {
-            case ^bool: ok = read_custom_bool(str, true_str, false_str, kind);
-            case: fmt.eprintf("Invalid type %T for specifier %%B\n", kind);
+                case ^bool: ok = read_custom_bool(str, true_str, false_str, kind);
+                case: fmt.eprintf("Invalid type %T for specifier %%B\n", kind);
             }
-
+            
             if capture do aidx += 1;
             fidx += len(fmt_str) - len(fmt_copy) - 1;
             
-        case 'S':
+            case 'S':
             fmt_copy := fmt_str[fidx+1:];
             open, close: byte;
             if !read_fmt(&fmt_copy, "%c%c", &open, &close)
@@ -533,17 +610,17 @@ read_fmt :: proc(str: ^string, fmt_str: string, args: ..any) -> bool
                 temp: string;
                 ok = read_surround(str, open, close, &temp);
             }
-
+            
             switch kind in arg
             {
                 case ^string: ok = read_surround(str, open, close, kind);
                 case: fmt.eprintf("Invalid type %T for specifier %%S\n", kind);
             }
-
+            
             if capture do aidx += 1;
             fidx += 3;
-
-        case:
+            
+            case:
             fmt.eprintf("Invalid format specifier '%%%c'\n", fmt_str[fidx]);
             return false;
         }

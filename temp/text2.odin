@@ -45,8 +45,10 @@ load_font :: proc(font_name: string, sizes: []int, codepoints: []rune, width := 
     defer delete(ttf);
     
     size_est := 0;
-    for s in sizes do
+    for s in sizes 
+    {
         size_est += s*s;
+    }
     size_est *= over_sample.x * over_sample.y * len(codepoints);
     
     height := size_est / width;
@@ -56,8 +58,10 @@ load_font :: proc(font_name: string, sizes: []int, codepoints: []rune, width := 
     metrics := make([]Glyph_Metric, len(sizes)*len(codepoints));
     
     pack_ranges := make([]Pack_Range, len(sizes));
-    for _, i in sizes do
+    for _, i in sizes 
+    {
         pack_ranges[i] = Pack_Range{
+    }
         cast(f32) sizes[i], 0,
         cast(^i32)&codepoints[0],
         cast(i32) len(codepoints),
@@ -86,8 +90,10 @@ load_font :: proc(font_name: string, sizes: []int, codepoints: []rune, width := 
     }
     
     max_y := 0;
-    for _, i in sizes do
+    for _, i in sizes 
+    {
         for _, j in codepoints do
+    }
         max_y = max(max_y, int(metrics[i*len(codepoints)+j].y1));
     
     max_y += 1;
@@ -147,14 +153,18 @@ bisect :: proc(data: []rune, value: rune) -> int {
 
 draw_text :: proc(s: ^Shader, font: ^Font, text: string, pos: [2]f32, size: int)
 {
-    if len(text) == 0 do
+    if len(text) == 0 
+    {
         return;
+    }
     pos := pos;
     
     sidx := -1;
     size := Size_Metric(nil);
-    for _, i in font.sizes do
+    for _, i in font.sizes 
+{
     {
+}
         if int(font.sizes[i].size+0.5) == size
         {
             sidx = i;
@@ -175,8 +185,10 @@ draw_text :: proc(s: ^Shader, font: ^Font, text: string, pos: [2]f32, size: int)
     min_x = pos.x;
     for c, i in text
     {
-        if 32 > c || c > 128 do
+        if 32 > c || c > 128 
+        {
             continue;
+        }
         
         if c == '\n'
         {
@@ -189,12 +201,16 @@ draw_text :: proc(s: ^Shader, font: ^Font, text: string, pos: [2]f32, size: int)
         switch
         {
             case font.codepoints_are_dense:
-            if int(c - codepoints[0]) >= 0 && int(c - codepoints[0]) < len(codepoints) do
+            if int(c - codepoints[0]) >= 0 && int(c - codepoints[0]) < len(codepoints) 
+            {
                 index = sidx*len(codepoints) + int(c - codepoints[0]);
+            }
             
             case font.codepoints_are_sorted:
-            if j := bisect(codepoints, c); j != -1 do
+            if j := bisect(codepoints, c); j != -1 
+            {
                 index = sidx*len(codepoints) + j;
+            }
             
             case:
             for C, j in codepoints

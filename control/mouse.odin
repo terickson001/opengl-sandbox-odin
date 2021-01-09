@@ -59,8 +59,10 @@ get_mouse_button :: proc(m: int) -> Button_State
 mouse_down :: proc(m: int) -> bool
 {
      state := get_mouse_button(m);
-     if state == .Pressed || state == .Down do
+     if state == .Pressed || state == .Down 
+     {
          return true;
+     }
      
      MOUSE.buttons[m] = state;
      return false;
@@ -69,8 +71,10 @@ mouse_down :: proc(m: int) -> bool
 mouse_pressed :: proc(m: int) -> bool
 {
      state := get_mouse_button(m);
-     if state == .Pressed do
+     if state == .Pressed 
+     {
          return true;
+     }
      
      MOUSE.buttons[m] = state;
      return false;
@@ -79,8 +83,10 @@ mouse_pressed :: proc(m: int) -> bool
 mouse_released :: proc(m: int) -> bool
 {
      state := get_mouse_button(m);
-     if state == .Released do
+     if state == .Released 
+     {
          return true;
+     }
      
      MOUSE.buttons[m] = state;
      return false;

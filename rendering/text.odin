@@ -89,8 +89,8 @@ load_font :: proc(name: string) -> (font: Font)
     font.texture.info.width = 96;
     font.texture.info.height = 96;
     
-    gl.GenTextures(1, &font.texture.diffuse);
-    gl.BindTexture(gl.TEXTURE_2D_ARRAY, font.texture.diffuse);
+    gl.GenTextures(1, &font.texture.id);
+    gl.BindTexture(gl.TEXTURE_2D_ARRAY, font.texture.id);
     gl.TexStorage3D(gl.TEXTURE_2D_ARRAY, 1, gl.RGBA8, 96, 96, 96);
     
     for i in 32..<128
@@ -121,28 +121,38 @@ load_font :: proc(name: string) -> (font: Font)
 get_char_width :: proc(font: Font, c: byte, size: int) -> f32
 {
     scale := f32(size) / (font.info.ascent - font.info.descent);
-    if 32 <= c && c < 128 do
+    if 32 <= c && c < 128 
+    {
         return font.info.metrics[c-32].advance * scale;
+    }
     return 0;
 }
 
 get_text_width :: proc(font: Font, text: string, size: int) -> (width: f32)
 {
-    if text == "" do
+    if text == "" 
+    {
         return;
+    }
     
     scale := f32(size) / (font.info.ascent - font.info.descent);
-    for c in text do
-        if 32 <= c && c < 128 do
-        width += font.info.metrics[c-32].advance * scale;
+    for c in text 
+    {
+        if 32 <= c && c < 128
+        {
+            width += font.info.metrics[c-32].advance * scale;
+        }
+    }
     
     return width;
 }
 
 draw_text :: proc(s: ^Shader, font: ^Font, text: string, pos: [2]f32, size: int)
 {    
-    if len(text) == 0 do
+    if len(text) == 0 
+    {
         return;
+    }
     
     pos := pos;
     
@@ -158,8 +168,10 @@ draw_text :: proc(s: ^Shader, font: ^Font, text: string, pos: [2]f32, size: int)
     scale := f32(size) / (font.info.ascent - font.info.descent);
     for c in text
     {
-        if 32 > c || c > 128 do
+        if 32 > c || c > 128 
+        {
             continue;
+        }
         
         metrics := font.info.metrics[c-32];
         if c == 32
@@ -205,7 +217,7 @@ draw_text :: proc(s: ^Shader, font: ^Font, text: string, pos: [2]f32, size: int)
     gl.Uniform2i(s.uniforms["resolution"], 1024, 768);
     
     gl.ActiveTexture(gl.TEXTURE0);
-    gl.BindTexture(gl.TEXTURE_2D_ARRAY, font.texture.diffuse);
+    gl.BindTexture(gl.TEXTURE_2D_ARRAY, font.texture.id);
     
     /* gl.Enable(gl.BLEND); */
     /* gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); */

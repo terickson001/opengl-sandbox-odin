@@ -7,19 +7,24 @@ import "core:strings"
 import "shared:heimdall"
 
 import render "../rendering"
+import model "model"
 import "../util"
 
 import "shared:image"
 
 Catalog :: struct
 {
+    root: string,
     assets: map[string]^Asset,
     allocator: runtime.Allocator,
     watcher: heimdall.Watcher,
 }
 
-make_catalog :: proc(allocator := context.allocator) -> (c: Catalog)
+global_catalog: Catalog;
+
+make_catalog :: proc(root: string = "./", allocator := context.allocator) -> (c: Catalog)
 {
+    c.root = root;
     c.allocator = allocator;
     c.assets = make(T=map[string]^Asset, allocator=allocator);
     c.watcher = heimdall.init_watcher(allocator);
@@ -36,13 +41,23 @@ Asset :: struct
 }
 
 Asset_Test   :: proc(data: []byte, filepath: string, ext: string) -> bool;
-Asset_Load   :: proc(data: []byte, filepath: string) -> ^Asset;
+Asset_Load   :: proc(data: []byte, filepath: string, ext: string) -> ^Asset;
 Asset_Delete :: proc(asset: ^Asset);
+
+/*
+Asset_Handler :: struct
+{
+    test   : proc(data: []byte, filepath: string, ext: string) -> bool;
+    load   : proc(data: []byte, filepath: string, ext: string) -> ^Asset;
+    delete : proc(asset: ^Asset);
+}
+*/
 
 Asset_Variant :: union {
     Shader,
     Texture,
     Mesh,
+    Material,
 }
 
 Shader :: struct
@@ -53,8 +68,7 @@ Shader :: struct
 
 Texture :: struct
 {
-    texture: u32,
-    info: render.Texture_Info,
+    texture: render.Texture,
 }
 
 Mesh :: struct
@@ -62,12 +76,13 @@ Mesh :: struct
     mesh: render.Mesh,
 }
 
-load :: proc(using c: ^Catalog, filepath: string, name := "") -> bool
+Material :: struct
 {
-    name := name;
-    
-    if name == "" do name = util.base(filepath);
-    
+    material: render.Material,
+}
+
+load :: proc(using c: ^Catalog, filepath: string) -> bool
+{
     asset, ok := load_generic(filepath);
     if !ok do return false;
     
@@ -75,9 +90,9 @@ load :: proc(using c: ^Catalog, filepath: string, name := "") -> bool
     file_time, _ := os.last_write_time_by_name(filepath); // @todo(Tyler): Setup cross-platform file watch
     asset.time = u64(file_time);
     
-    alloc_name := strings.clone(name, c.allocator);
-    assets[alloc_name] = new_clone(asset, c.allocator);
-    heimdall.watch_file(&c.watcher, filepath, {.Modify}, reload, c, alloc_name);
+    alloc_path := strings.clone(filepath, c.allocator);
+    assets[alloc_path] = new_clone(asset, c.allocator);
+    heimdall.watch_file(&c.watcher, filepath, {.Modify}, reload, c, alloc_path);
     return true;
 }
 
@@ -95,11 +110,12 @@ load_generic :: proc(filepath: string) -> (Asset, bool)
     asset: Asset;
     switch
     {
-        case shader_test(data, filepath, ext):  asset = load_shader(data, filepath);
-        case mesh_test(data, filepath, ext):    asset = load_mesh(data, filepath);
-        case texture_test(data, filepath, ext): asset = load_texture(data, filepath);
+        case shader_test(data, filepath, ext):  asset = load_shader(data, filepath, ext);
+        case mesh_test(data, filepath, ext):    asset = load_mesh(data, filepath, ext);
+        case texture_test(data, filepath, ext): asset = load_texture(data, filepath, ext);
         case: return Asset{}, false;
     }
+    
     
     return asset, true;
 }
@@ -111,18 +127,19 @@ reload :: proc(event: heimdall.Event, data: []any)
     {
         case: fmt.printf("data[0] type: %T\n", kind);
     }
+    
     catalog := data[0].(^Catalog);
-    asset_name := data[1].(string);
+    asset_path := data[1].(string);
     #partial switch v in event.focus.variant
     {
         case heimdall.File_Focus:
         fullpath := fmt.tprintf("%s/%s", event.focus.directory, v.filename);
         ok: bool;
         asset: ^Asset;
-        asset, ok = catalog.assets[asset_name];
+        asset, ok = catalog.assets[asset_path];
         if !ok
         {
-            fmt.eprintf("No asset %q loaded\n", asset_name);
+            fmt.eprintf("No asset %q loaded\n", asset_path);
             fmt.printf("%#v\n", catalog.assets);
             return;
         }
@@ -135,27 +152,36 @@ reload :: proc(event: heimdall.Event, data: []any)
             return;
         }
         
-        fmt.printf("Asset Hotloaded: %q\n", asset_name);
+        fmt.printf("Asset Hotloaded: %q\n", asset_path);
         asset^ = new_asset;
     }
 }
 
-get :: proc(using c: ^Catalog, name: string) -> ^Asset
+get :: proc(using c: ^Catalog, path: string) -> ^Asset
 {
-    asset, ok := assets[name];
+    fmt.printf("Getting Asset %q\n", path);
+    asset, ok := assets[path];
     if !ok
     {
-        fmt.eprintf("No asset %q loaded\n", name);
-        return nil;
+        ok = load(c, path);
+        if !ok
+        {
+            fmt.eprintf("Could not load asset %q\n", path);
+            return nil;
+        }
+        asset = assets[path];
     }
     
     return asset;
 }
 
+register :: proc{register_material};
+
 check_updates :: proc(using c: ^Catalog)
 {
     heimdall.poll_events(&watcher);
 }
+
 // Shader
 @private
 shader_test :: proc(data: []byte, _: string, ext: string) -> bool
@@ -169,7 +195,7 @@ shader_test :: proc(data: []byte, _: string, ext: string) -> bool
 }
 
 @private
-load_shader :: proc(data: []byte, filepath: string) -> Asset
+load_shader :: proc(data: []byte, filepath: string, ext: string) -> Asset
 {
     shader := render.load_shader_from_mem(data, filepath);
     
@@ -179,15 +205,15 @@ load_shader :: proc(data: []byte, filepath: string) -> Asset
     return shader_asset;
 }
 
-get_shader :: proc(using c: ^Catalog, name: string) -> ^render.Shader
+get_shader :: proc(using c: ^Catalog, path: string) -> ^render.Shader
 {
-    asset := get(c, name);
+    asset := get(c, path);
     if asset == nil do return nil;
     
     shader_asset := &asset.variant.(Shader);
     if shader_asset == nil
     {
-        fmt.eprintf("Asset %q is not a shader\n", name);
+        fmt.eprintf("Asset %q is not a shader\n", path);
         return nil;
     }
     
@@ -199,32 +225,39 @@ mesh_test :: proc(data: []byte, _: string, ext: string) -> bool
 {
     switch ext
     {
-        case "obj": return true; // @todo(Tyler): SUPPORT OTHER FORMATS
+        case "obj","fbx": return true; // @todo(Tyler): SUPPORT OTHER FORMATS
         case "": return false; // @todo(Tyler): Checks based on file contents
         case: return false;
     }
 }
 
 @private
-load_mesh :: proc(data: []byte, filepath: string) -> Asset
+load_mesh :: proc(data: []byte, filepath: string, ext: string) -> Asset
 {
-    mesh := render.load_obj_from_mem(data);
+    mesh: render.Mesh;
+    switch ext
+    {
+        case "obj": mesh = render.Mesh{model.load_obj_from_mem(data), {}};
+        case "fbx": mesh = render.Mesh{model.load_fbx_from_mem(data).mesh, {}};
+    }
     
+    render.compute_tangent_basis(&mesh);
+    render.index_mesh(&mesh);
+    render.create_mesh_vbos(&mesh);
     mesh_asset := Asset{};
     mesh_asset.variant = Mesh{mesh};
-    
     return mesh_asset;
 }
 
-get_mesh :: proc(using c: ^Catalog, name: string) -> ^render.Mesh
+get_mesh :: proc(using c: ^Catalog, path: string) -> ^render.Mesh
 {
-    asset := get(c, name);
+    asset := get(c, path);
     if asset == nil do return nil;
     
-    mesh_asset, ok := asset.variant.(Mesh);
-    if !ok
+    mesh_asset := &asset.variant.(Mesh);
+    if mesh_asset == nil
     {
-        fmt.eprintf("Asset %q is not a mesh\n", name);
+        fmt.eprintf("Asset %q is not a mesh\n", path);
         return nil;
     }
     return &mesh_asset.mesh;
@@ -237,26 +270,53 @@ texture_test :: proc(data: []byte, _: string, _: string) -> bool
 }
 
 @private
-load_texture :: proc(data: []byte, filepath: string) -> Asset
+load_texture :: proc(data: []byte, filepath: string, ext: string) -> Asset
 {
-    tex, info := render.image_texture(data);
+    tex := render.image_texture(data);
     
     tex_asset := Asset{};
-    tex_asset.variant = Texture{tex, info};
+    tex_asset.variant = Texture{tex};
     
     return tex_asset;
 }
 
-get_texture :: proc(using c: ^Catalog, name: string) -> ^u32
+get_texture :: proc(using c: ^Catalog, path: string) -> ^render.Texture
+{
+    asset := get(c, path);
+    if asset == nil do return nil;
+    
+    tex_asset := &asset.variant.(Texture);
+    if tex_asset == nil
+    {
+        fmt.eprintf("Asset %q is not a texture\n", path);
+        return nil;
+    }
+    return &tex_asset.texture;
+}
+
+get_material :: proc(using c: ^Catalog, name: string) -> ^render.Material
 {
     asset := get(c, name);
     if asset == nil do return nil;
     
-    tex_asset, ok := asset.variant.(Texture);
-    if !ok
+    mat_asset := &asset.variant.(Material);
+    if mat_asset == nil
     {
-        fmt.eprintf("Asset %q is not a texture\n", name);
+        fmt.eprintf("Asset %q is not a material\n", name);
         return nil;
     }
-    return &tex_asset.texture;
+    return &mat_asset.material;
+}
+
+register_material :: proc(using c: ^Catalog, material: render.Material, name: string) -> ^render.Material
+{
+    asset := new(Asset, c.allocator);
+    asset.variant = Material{material};
+    
+    alloc_name := strings.clone(name, c.allocator);
+    assets[alloc_name] = asset;
+    
+    mat_asset := &asset.variant.(Material);
+    
+    return &mat_asset.material;
 }

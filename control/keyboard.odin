@@ -53,8 +53,10 @@ get_keystate :: proc(k: int) -> Button_State
 key_down :: proc(k: int) -> bool
 {
      state := get_keystate(k);
-     if Button_State.Pressed <= state && state <= .Repeat do
+     if Button_State.Pressed <= state && state <= .Repeat 
+     {
          return true;
+     }
      
      code := k - 32;
      KEYBOARD.keys[code] = state;
@@ -64,8 +66,10 @@ key_down :: proc(k: int) -> bool
 key_pressed :: proc(k: int) -> bool
 {
      state := get_keystate(k);
-     if state == .Pressed do
+     if state == .Pressed 
+     {
          return true;
+     }
      
      code := k - 32;
      KEYBOARD.keys[code] = state;
@@ -75,8 +79,10 @@ key_pressed :: proc(k: int) -> bool
 key_repeat :: proc(k: int) -> bool
 {
      state := get_keystate(k);
-     if state == .Pressed || state == .Released do
+     if state == .Pressed || state == .Released 
+     {
          return true;
+     }
      
      code := k - 32;
      KEYBOARD.keys[code] = state;
@@ -86,8 +92,10 @@ key_repeat :: proc(k: int) -> bool
 key_released :: proc(k: int) -> bool
 {
      state := get_keystate(k);
-     if state == .Released do
+     if state == .Released 
+     {
          return true;
+     }
      
      code := k - 32;
      KEYBOARD.keys[code] = state;
@@ -106,6 +114,8 @@ keyboard_text_unhook :: proc()
 
 keyboard_char_callback :: proc "c" (window: glfw.Window_Handle, codepoint: rune)
 {
-     if KEYBOARD.text_buffer != nil do
+     if KEYBOARD.text_buffer != nil 
+     {
          append(KEYBOARD.text_buffer, byte(codepoint));
+     }
 }
