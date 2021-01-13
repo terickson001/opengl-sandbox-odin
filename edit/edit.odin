@@ -373,7 +373,6 @@ init_gizmo :: proc()
         
         material := asset.register(&asset.global_catalog, render.make_material(albedo = dir, shaded = false), fmt.aprintf("gizmo_color_%c", 'x'+d));
         
-        fmt.printf("MATERIAL: %#v\n", material);
         cone.ctx = render.make_context(1, 0);
         cylinder.ctx = render.make_context(1, 0);
         render.bind_context(&cone.ctx);

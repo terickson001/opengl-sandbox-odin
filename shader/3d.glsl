@@ -178,8 +178,8 @@ float calculate_shadow(vec3 frag_pos)
     float frag_depth = length(frag_to_light);
     
     float epsilon = 0.05;
-    float shadow = frag_depth - bias > closest_depth ? 1.0 : 0.0;
-    
+    float shadow = frag_depth - epsilon > closest_depth ? 1.0 : 0.0;
+    //color = vec3(closest_depth/light_extent);
     return shadow;
 }
 
@@ -288,7 +288,6 @@ vec3 reflectance(Material m, vec3 light_col, vec3 light_pos)
     float NdotL = max(dot(N, L), 0.0);
     
     vec3 diffuse = kD * m.albedo;
-    // vec3 diffuse = kD * albedo_const;
     return (diffuse + specular) * radiance * NdotL;
 }
 
@@ -304,22 +303,19 @@ void main()
         
         // Ambient Lighting
         
-        vec3 ambient = vec3(0.03) * material.albedo * material.ao;
+        vec3 ambient = vec3(0.01) * material.albedo * material.ao;
         float shadow = calculate_shadow(frag.position_m);
+        // shadow = 0.0;
         color = ambient + (1.0 - shadow) * Lo;
-        
-        vec3 frag_to_light = frag.position_m - light_position_m;
-        float closest_depth = texture(depth_map, frag_to_light).r;
-        color = vec4(vec3(closest_depth), 1.0);
     }
     else
     {
         color = material.albedo;
     }
-    // HDR tonemapping
-    color = color / (color + vec3(1.0));
-    // Gamma Correction
-    color = pow(color, vec3(1.0/2.2));
+    
+    vec3 frag_to_light = frag.position_m - light_position_m;
+    float closest_depth = texture(depth_map, frag_to_light).r;
+    
     
     float nearD = min(min(edge_dist.x, edge_dist.y), edge_dist.z);
     float edge_intensity = exp2(-1.0*nearD*nearD);
@@ -327,5 +323,10 @@ void main()
     float edge_thickness = 0.5;
     if (wireframe)
         color = mix(color, edge_color, edge_intensity*edge_thickness);
+    
+    // HDR tonemapping
+    color = color / (color + vec3(1.0));
+    // Gamma Correction
+    color = pow(color, vec3(1.0/2.2));
 }
 

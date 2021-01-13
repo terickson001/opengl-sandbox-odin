@@ -62,13 +62,13 @@ setup_shadowmap :: proc(light: Light, s: ^Shader)
     proj := linalg.matrix4_perspective(linalg.radians(f32(90.0)), 1, 1, light.extent);
     pos := cast(linalg.Vector3)light.pos;
     matrices: [6]linalg.Matrix4;
-    matrices[0] = proj * linalg.matrix4_look_at(pos, pos + { 1, 0, 0}, { 0,-1, 0});
-    matrices[1] = proj * linalg.matrix4_look_at(pos, pos + {-1, 0, 0}, { 0,-1, 0});
-    matrices[2] = proj * linalg.matrix4_look_at(pos, pos + { 0, 1, 0}, { 0, 0, 1});
-    matrices[3] = proj * linalg.matrix4_look_at(pos, pos + { 0,-1, 0}, { 0, 0,-1});
-    matrices[4] = proj * linalg.matrix4_look_at(pos, pos + { 0, 0, 1}, { 0,-1, 0});
-    matrices[5] = proj * linalg.matrix4_look_at(pos, pos + { 0, 0,-1}, { 0,-1, 0});
-    set_uniform(s, "shadow_matrices", matrices);
+    matrices[0] = linalg.matrix_mul(proj, linalg.matrix4_look_at(pos, pos + { 1, 0, 0}, { 0,-1, 0}));
+    matrices[1] = linalg.matrix_mul(proj, linalg.matrix4_look_at(pos, pos + {-1, 0, 0}, { 0,-1, 0}));
+    matrices[2] = linalg.matrix_mul(proj, linalg.matrix4_look_at(pos, pos + { 0, 1, 0}, { 0, 0, 1}));
+    matrices[3] = linalg.matrix_mul(proj, linalg.matrix4_look_at(pos, pos + { 0,-1, 0}, { 0, 0,-1}));
+    matrices[4] = linalg.matrix_mul(proj, linalg.matrix4_look_at(pos, pos + { 0, 0, 1}, { 0,-1, 0}));
+    matrices[5] = linalg.matrix_mul(proj, linalg.matrix4_look_at(pos, pos + { 0, 0,-1}, { 0,-1, 0}));
+    set_uniform(s, "shadow_matrices[0]", matrices);
     
     set_uniform(s, "far_plane", light.extent);
     set_uniform(s, "light_pos", light.pos);

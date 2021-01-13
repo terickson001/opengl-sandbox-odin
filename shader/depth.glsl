@@ -11,11 +11,13 @@ void main()
 }
 
 @geometry
+
 layout(triangles) in;
 layout(triangle_strip, max_vertices=18) out;
 
 uniform mat4 shadow_matrices[6];
-
+uniform vec3 light_pos;
+uniform float far_plane;
 out vec4 frag_pos;
 
 void main()

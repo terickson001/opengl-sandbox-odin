@@ -21,8 +21,8 @@ Entity :: struct
     // tex   : ^render.Texture "noinspect",
     material: ^render.Material,
     pos   : [3]f32,
-    dir   : [3]f32,
-    scale : [3]f32,
+    dir   : [3]f32 ,
+    scale : [3]f32 "link",
     
     wireframe: bool "noinspect",
     bounds: AABB "noinspect",
@@ -37,27 +37,24 @@ Entity_2D :: struct
     angle  : f32,
 }
 
-make_entity :: proc(name: string, m: ^render.Mesh, mat: ^render.Material, pos: [3]f32 = {0, 0, 0}, dir: [3]f32 = {0, 0, 1}) -> (e: Entity)
+make_entity :: proc(name: string, m: ^render.Mesh, mat: ^render.Material, pos: [3]f32 = {0, 0, 0}, dir: [3]f32 = {0, 0, 1}, scale: [3]f32 = {1, 1, 1}) -> (e: Entity)
 {
-    fmt.printf("Making entity %q\n", name);
     e.name = name;
     e.mesh = m;
     e.material = mat;
     e.pos = pos;
     e.dir = linalg.normalize(dir);
     e.bounds = get_mesh_bounds(m);
-    
+    e.scale = scale;
     return;
 }
 
 entity_transform :: proc(using e: Entity) -> [4][4]f32
 {
     
-    translate := cast([4][4]f32)linalg.matrix4_translate(
-                                                         cast(linalg.Vector3)pos
-                                                         );
+    translate := linalg.matrix4_translate(cast(linalg.Vector3)pos);
     
-    rotate := cast([4][4]f32)linalg.MATRIX4_IDENTITY;
+    rotate := linalg.MATRIX4_IDENTITY;
     {
         right := linalg.cross(dir, [3]f32{0, 1, 0});
         if right == {0, 0, 0} do right = linalg.cross(dir, [3]f32{0, 0, 1});
@@ -67,11 +64,12 @@ entity_transform :: proc(using e: Entity) -> [4][4]f32
                                           cast(linalg.Vector3)(pos+dir),
                                           cast(linalg.Vector3)(up)
                                           );
-        rotate = cast([4][4]f32)linalg.matrix4_from_quaternion(quat);
+        rotate = linalg.matrix4_from_quaternion(quat);
     }
     
-    transform := linalg.mul(translate, rotate);
-    return transform;
+    scale_mat := linalg.matrix4_scale(cast(linalg.Vector3)scale);
+    transform := linalg.mul(translate, linalg.mul(rotate, scale_mat));
+    return cast([4][4]f32)transform;
 }
 
 draw_entity :: proc(s: ^render.Shader, using e: Entity)
@@ -82,6 +80,7 @@ draw_entity :: proc(s: ^render.Shader, using e: Entity)
     gl.VertexAttrib4fv(6, &M[1][0]);
     gl.VertexAttrib4fv(7, &M[2][0]);
     gl.VertexAttrib4fv(8, &M[3][0]);
+    render.set_uniform(s, "M", M);
     
     render.set_uniform(s, "wireframe", e.wireframe);
     

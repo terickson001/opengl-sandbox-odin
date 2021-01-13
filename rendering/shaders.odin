@@ -29,10 +29,8 @@ set_uniform :: proc(using s: ^Shader, name: string, val: $T, loc := #caller_loca
     location, found := s.uniforms[name];
     if !found
     {
-        /*
-                fmt.eprintf("%#v: ERROR: Shader does not have uniform %q\n", loc, name);
-                os.exit(1);
-        */
+        // fmt.eprintf("%#v: ERROR: Shader does not have uniform %q\n", loc, name);
+        // os.exit(1);
         return;
     }
     
@@ -65,13 +63,13 @@ set_uniform :: proc(using s: ^Shader, name: string, val: $T, loc := #caller_loca
     else when intrinsics.type_is_array(E)
     {
         S :: intrinsics.type_elem_type(E);
-        
         when intrinsics.type_is_array(S) // Array of Matrices
         {
-            M :: size_of(E) / size_of(T); // Matrix Dims
-            when      M == 2 { temp := val; gl.UniformMatrix2fv(location, N, gl.FALSE, &temp[0][0]); }
-            else when M == 3 { temp := val; gl.UniformMatrix3fv(location, N, gl.FALSE, &temp[0][0]); }
-            else when M == 4 { temp := val; gl.UniformMatrix4fv(location, N, gl.FALSE, &temp[0][0]); }
+            
+            M :: size_of(E) / size_of(S); // Matrix Dims
+            when      M == 2 { temp := val; gl.UniformMatrix2fv(location, N, gl.FALSE, &temp[0][0][0]); }
+            else when M == 3 { temp := val; gl.UniformMatrix3fv(location, N, gl.FALSE, &temp[0][0][0]); }
+            else when M == 4 { temp := val; gl.UniformMatrix4fv(location, N, gl.FALSE, &temp[0][0][0]); }
         }
         else
         {
@@ -89,10 +87,10 @@ set_uniform_block :: proc(using s: ^Shader, name: string, val: $T, loc := #calle
     location, found := s.uniforms[name];
     if !found
     {
-        /*
-                fmt.eprintf("%#v: ERROR: Shader does not have uniform %q\n", loc, name);
-                os.exit(1);
-        */
+        
+        fmt.eprintf("%#v: ERROR: Shader does not have uniform %q\n", loc, name);
+        //os.exit(1);
+        
         return;
     }
     
@@ -294,16 +292,18 @@ parse_shader :: proc(using p: ^Shader_Parser, path: string, source: []byte)
         {
             switch ident
             {
-                case "uniform":
-                name: string;
-                if !read_fmt(&file, "%_%^s%_%s%_", &name)
-                {
-                    fmt.eprintf("ERROR: Couldn't parse shader uniform\n");
-                    os.exit(1);
-                }
-                
-                temp := strings.clone(name);
-                uniforms[temp] = -1;
+                /*
+                                case "uniform":
+                                name: string;
+                                if !read_fmt(&file, "%_%^s%_%s%_", &name)
+                                {
+                                    fmt.eprintf("ERROR: Couldn't parse shader uniform\n");
+                                    os.exit(1);
+                                }
+                                
+                                temp := strings.clone(name);
+                                uniforms[temp] = -1;
+                */
                 
                 case:
                 read_line(&file, nil);
@@ -409,14 +409,26 @@ load_shader_from_mem :: proc(code: []byte, filepath := string{}) -> Shader
     shader.id = program_id;
     
     // Initialize
+    
     shader.filepath = strings.clone(filepath);
     
-    for name, _ in shader.uniforms
+    // Get Uniforms
+    n_uniforms: i32;
+    gl.GetProgramiv(shader.id, gl.ACTIVE_UNIFORMS, &n_uniforms);
+    
+    if n_uniforms > 0 do reserve(&shader.uniforms, int(n_uniforms));
+    
+    for i in 0..<n_uniforms
     {
-        cstr := strings.clone_to_cstring(name);
-        defer delete(cstr);
+        strlen: i32;
+        cstr: [256]u8;
+        kind: u32;
+        size: i32;
+        gl.GetActiveUniform(shader.id, u32(i), 256, &strlen, &size, &kind, &cstr[0]);
         
-        shader.uniforms[name] = gl.GetUniformLocation(shader.id, cstr);
+        loc := gl.GetUniformLocation(shader.id, cstring(&cstr[0]));
+        name := strings.clone(string(cstr[:strlen]));
+        shader.uniforms[name] = loc;
     }
     
     if filepath != "" 

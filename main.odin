@@ -33,7 +33,6 @@ import "shared:profile"
 // @todo: Support new mesh formats
 // @todo: Animations
 
-
 main :: proc()
 {
     when ODIN_DEBUG do profile.scoped_zone();
@@ -76,9 +75,7 @@ main :: proc()
     
     suzanne_m := asset.get_mesh(&asset.global_catalog, "res/suzanne.obj");
     
-    // cube := gen_wall({1, 1, 1});
     cube := asset.get_mesh(&asset.global_catalog, "res/cube.fbx");
-    // cube := render.Mesh{model.load_fbx("res/cube.fbx").mesh, {}};
     
     wall_mesh := gen_wall({8, 8, 1});
     
@@ -90,7 +87,7 @@ main :: proc()
     // dds := render.load_texture("res/cube2.DDS");
     
     scn := scene.make_scene();
-    // scene.add_entity(&scn, entity.make_entity("suzanne", suzanne_m, &suzanne_mat, {0, 0, 0}, {0, 0, -1}));
+    scene.add_entity(&scn, entity.make_entity("suzanne", suzanne_m, &suzanne_mat, {0, 0, 2}, {0, 0, -1}));
     scene.add_entity(&scn, entity.make_entity("wall_back",   &wall_mesh, &cobble, { 0,     0,    -4.5}, { 0,  0, -1}));
     scene.add_entity(&scn, entity.make_entity("wall_left",   &wall_mesh, &cobble, {-4.5,   0,     0},   { 1,  0,  0}));
     scene.add_entity(&scn, entity.make_entity("wall_right",  &wall_mesh, &cobble, { 4.5,   0,     0},   {-1,  0,  0}));
@@ -133,7 +130,7 @@ main :: proc()
     fps_str: string;
     
     view_mat: [4][4]f32;
-    cam_pos := [3]f32{0, 0, 1};
+    cam_pos := [3]f32{0, 2, 0};
     scene.add_camera(&scn, render.make_camera(cam_pos, cam_pos*-1, 3.0, 0.15));
     scn.camera.projection = cast([4][4]f32)linalg.matrix4_perspective(
                                                                       linalg.radians(f32(75.0)),
@@ -196,7 +193,7 @@ main :: proc()
             adventurer.pos.y =  math.sin(f32(current_time)*4)*(h/8)+h/2;
             adventurer.pos.x =  math.cos(f32(current_time)*4)*-1*(w/8)+w/2;
             
-            light.pow = light_pow_base + math.sin(f32(current_time))*(light_pow_base/2);
+            light.pow = light_pow_base + math.sin(f32(current_time))*(light_pow_base);
             /*
                         light.pos.y =  math.sin(f32(current_time)*2)*4;
                         light.pos.x =  math.cos(f32(current_time)*2)*4;
@@ -218,14 +215,15 @@ main :: proc()
         
         if updated
         {
-            gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+            
             scn.camera.view = render.get_camera_view(scn.camera);
             
             render.setup_shadowmap(light, depth_shader);
             scene.render(&scn, depth_shader);
+            
             gl.BindFramebuffer(gl.FRAMEBUFFER, 0);
             gl.Viewport(0, 0, i32(window.width), i32(window.height));
-            
+            gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
             gl.UseProgram(shader.id);
             render.set_uniform(shader, "V", scn.camera.view);
             render.set_uniform(shader, "P", scn.camera.projection);
@@ -236,7 +234,7 @@ main :: proc()
             render.set_uniform(shader, "resolution", window.res);
             gl.ActiveTexture(gl.TEXTURE5);
             gl.BindTexture(gl.TEXTURE_CUBE_MAP, light.shadowmap.tex);
-            render.set_uniform(shader, "shadow_map", 5);
+            render.set_uniform(shader, "depth_map", 5);
             render.set_uniform(shader, "light_extent", light.extent);
             
             scene.render(&scn, shader);
@@ -244,7 +242,7 @@ main :: proc()
             /* 2D */
             gl.UseProgram(shader_2d.id);
             render.set_uniform(shader_2d, "resolution", window.res);
-            
+            render.debug_texture(shader, suzanne_mat.albedo.(^render.Texture).id);
             gfnt.set_state();
             {
                 _, fps_w, _ := gfnt.parse_string_noallocate(&font, string(fps_str[:]), 24, nil);
