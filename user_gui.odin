@@ -6,21 +6,21 @@ import "shared:gl"
 
 import "core:fmt"
 
-import render "rendering"
-import "gui"
-import "control"
+import core "engine"
+import "engine/gui"
+import "engine/control"
 
 Gui_State :: struct
 {
     window: gui.Window,
-    palette: render.Texture,
+    palette: core.Texture,
     
     slider_value: f32,
     other_value: f32,
     text_buffer: gui.Text_Buffer,
 }
 
-init_gui :: proc(win: render.Window) -> (gui.Context, Gui_State)
+init_gui :: proc(win: core.Window) -> (gui.Context, Gui_State)
 {
     ctx := gui.init();
     {
@@ -65,7 +65,7 @@ init_gui :: proc(win: render.Window) -> (gui.Context, Gui_State)
         using state;
         
         window = gui.init_window(&ctx, "A Window", {256, 100, 412, 110});
-        palette = render.texture_palette(ctx.style.colors[:], false);
+        palette = core.texture_palette(ctx.style.colors[:], false);
         
         slider_value = 50;
         other_value = 128;
@@ -90,7 +90,7 @@ update_gui_inputs :: proc(ctx: ^gui.Context, dt: f64)
     ctx.delta_time = dt;
 }
 
-do_gui :: proc(state: ^Gui_State, ctx: ^gui.Context, win: render.Window)
+do_gui :: proc(state: ^Gui_State, ctx: ^gui.Context, win: core.Window)
 {
     if .Active in gui.window(ctx, &state.window, {})
     {
@@ -123,7 +123,7 @@ do_gui :: proc(state: ^Gui_State, ctx: ^gui.Context, win: render.Window)
     }
 }
 
-draw_gui :: proc(ctx: ^gui.Context, sgen, stext: ^render.Shader, render_ctx: ^render.Context, font: ^gfnt.Font, palette: render.Texture)
+draw_gui :: proc(ctx: ^gui.Context, sgen, stext: ^core.Shader, render_ctx: ^core.Render_Context, font: ^gfnt.Font, palette: core.Texture)
 {
     draw: gui.Draw;
     for gui.next_draw(ctx, &draw)
@@ -140,13 +140,13 @@ draw_gui :: proc(ctx: ^gui.Context, sgen, stext: ^render.Shader, render_ctx: ^re
     }
 }
 
-draw_text :: proc(s: ^render.Shader, pos: [2]f32, font: ^gfnt.Font, text: string, size: f32, layer: int, color_id: gui.Color_ID)
+draw_text :: proc(s: ^core.Shader, pos: [2]f32, font: ^gfnt.Font, text: string, size: f32, layer: int, color_id: gui.Color_ID)
 {
     sz := font_nearest_size(font, int(size));
     gfnt.draw_string(font, sz, {pos.x, pos.y}, 0, text);
 }
 
-draw_rect :: proc(s: ^render.Shader, ctx: ^render.Context, rect: gui.Rect, layer: int, color_id: gui.Color_ID, palette: render.Texture)
+draw_rect :: proc(s: ^core.Shader, ctx: ^core.Render_Context, rect: gui.Rect, layer: int, color_id: gui.Color_ID, palette: core.Texture)
 {
     using rect := rect;
     
@@ -163,7 +163,7 @@ draw_rect :: proc(s: ^render.Shader, ctx: ^render.Context, rect: gui.Rect, layer
     vertices[4] = {x+w, y};
     vertices[5] = {x+w, y+h};
     
-    c_uv := render.texture_palette_index(palette, int(color_id));
+    c_uv := core.texture_palette_index(palette, int(color_id));
     uv_size := 1/f32(palette.info.width);
     uvs[0] = c_uv;
     uvs[1] = {c_uv.x + uv_size, c_uv.y + uv_size};
@@ -176,9 +176,9 @@ draw_rect :: proc(s: ^render.Shader, ctx: ^render.Context, rect: gui.Rect, layer
     gl.UseProgram(s.id);
     
     
-    render.bind_context(ctx);
-    render.update_vbo(ctx, 0, vertices[:]);
-    render.update_vbo(ctx, 1, uvs[:]);
+    core.bind_render_context(ctx);
+    core.update_vbo(ctx, 0, vertices[:]);
+    core.update_vbo(ctx, 1, uvs[:]);
     
     gl.ActiveTexture(gl.TEXTURE0);
     gl.BindTexture(gl.TEXTURE_2D, palette.id);

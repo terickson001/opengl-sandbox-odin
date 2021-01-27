@@ -1,21 +1,21 @@
-package rendering
+package engine
 
 import "core:fmt"
-import "shared:gl"
 import "core:os"
 import "core:strings"
 import "core:mem"
 import "core:intrinsics"
 import rt "core:runtime"
-import "../util"
+
+import "shared:gl"
+
+import "util"
 
 Shader :: struct
 {
     id: u32,
     time: os.File_Time,
-    
     filepath: string,
-    
     version: string,
     
     uniforms : map[string]i32,
@@ -336,6 +336,7 @@ Shader_Kind :: enum
     Fragment,
 }
 
+@(private="file")
 gl_shader_kind :: proc(k: Shader_Kind) -> u32
 {
     switch k
@@ -347,6 +348,7 @@ gl_shader_kind :: proc(k: Shader_Kind) -> u32
     }
 }
 
+@(private="file")
 Shader_Parser :: struct
 {
     using shader: ^Shader,
@@ -422,7 +424,7 @@ parse_shader :: proc(using p: ^Shader_Parser, path: string, source: []byte)
                     os.exit(1);
                 }
                 
-                path := fmt.aprintf("%s/%s", util.dir(path), imported);
+                path := fmt.aprintf("%s/%s", util.path_dir(path), imported);
                 imp_data, ok := os.read_entire_file(path);
                 if !ok
                 {
@@ -510,19 +512,6 @@ parse_shader :: proc(using p: ^Shader_Parser, path: string, source: []byte)
         {
             switch ident
             {
-                /*
-                                case "uniform":
-                                name: string;
-                                if !read_fmt(&file, "%_%^s%_%s%_", &name)
-                                {
-                                    fmt.eprintf("ERROR: Couldn't parse shader uniform\n");
-                                    os.exit(1);
-                                }
-                                
-                                temp := strings.clone(name);
-                                uniforms[temp] = -1;
-                */
-                
                 case:
                 read_line(&file, nil);
             }

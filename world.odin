@@ -1,47 +1,12 @@
 package main
 
 import "core:math/rand"
-import render "rendering"
 import "core:mem"
 import "core:fmt"
 
-import "entity"
+import core "engine"
 
-Scene :: struct
-{
-    base_entities: map[string]entity.Entity,
-    entities: [dynamic]entity.Entity,
-}
-
-make_scene :: proc(allocator := context.allocator) -> Scene
-{
-    scene: Scene;
-    scene.base_entities = make(T=map[string]entity.Entity, allocator=allocator);
-    scene.entities = make([dynamic]entity.Entity, allocator);
-    return scene;
-}
-
-scene_add_entity :: proc(scene: ^Scene, entity: entity.Entity)
-{
-    if entity.name not_in scene.base_entities
-    {
-        base := entity;
-        base.pos = {0, 0, 0};
-        base.scale = {1, 1, 1};
-        scene.base_entities[entity.name] = entity;
-    }
-    append(&scene.entities, entity);
-}
-
-render_scene :: proc(scene: ^Scene, shader: ^render.Shader)
-{
-    for e in scene.entities 
-    {
-        entity.draw_entity(shader, e);
-    }
-}
-
-gen_wall :: proc(dims: [3]f32) -> render.Mesh
+gen_wall :: proc(dims: [3]f32) -> core.Mesh
 {
     assert(dims.x > 0 && dims.y > 0 && dims.z > 0);
     offset := -dims/2;
@@ -66,9 +31,9 @@ gen_wall :: proc(dims: [3]f32) -> render.Mesh
         for s in 0..1
         {
             cube_idx := ((i*2)+s)*4;
-            orig_face := render.cube_verts[cube_idx:];
-            orig_norms := render.cube_normals[cube_idx:];
-            orig_uvs := render.cube_uvs[cube_idx:];
+            orig_face := core.cube_verts[cube_idx:];
+            orig_norms := core.cube_normals[cube_idx:];
+            orig_uvs := core.cube_uvs[cube_idx:];
             
             face := [4][3]f32{orig_face[0], orig_face[1], orig_face[2], orig_face[3]};
             for v in &face do v = (v+1)/2;
@@ -89,15 +54,15 @@ gen_wall :: proc(dims: [3]f32) -> render.Mesh
         }
     }
     
-    mesh: render.Mesh;
+    mesh: core.Mesh;
     
     mesh.vertices = vertices;
     mesh.normals = normals;
     mesh.uvs = uvs;
     
-    render.compute_tangent_basis(&mesh);
-    render.index_mesh(&mesh);
-    render.create_mesh_vbos(&mesh);
+    core.compute_tangent_basis(&mesh);
+    core.index_mesh(&mesh);
+    core.create_mesh_vbos(&mesh);
     
     return mesh;
 }

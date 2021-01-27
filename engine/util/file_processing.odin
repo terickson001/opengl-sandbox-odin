@@ -4,21 +4,25 @@ import "core:fmt"
 import "core:strings"
 import "core:os"
 
+@private
 char_is_alpha :: proc(c: u8) -> bool
 {
     return ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z');
 }
 
+@private
 char_is_num :: proc(c: u8) -> bool
 {
     return '0' <= c && c <= '9';
 }
 
+@private
 char_is_alphanum :: proc(c: u8) -> bool
 {
     return char_is_alpha(c) || char_is_num(c);
 }
 
+@private
 char_is_ident :: proc(c: u8) -> bool
 {
     return char_is_alphanum(c) || c == '_';

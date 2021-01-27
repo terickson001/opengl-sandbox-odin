@@ -1,4 +1,4 @@
-package rendering
+package engine
 
 import "core:fmt"
 import "core:os"

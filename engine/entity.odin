@@ -1,13 +1,10 @@
-package entity
+package engine
 
 import "core:fmt"
 import "core:math"
 import "core:math/linalg"
 
 import "shared:gl"
-import "../asset/model"
-
-import render "../rendering"
 
 Entity_Group :: struct
 {
@@ -17,9 +14,8 @@ Entity_Group :: struct
 Entity :: struct
 {
     name  : string,
-    mesh  : ^render.Mesh "noinspect",
-    // tex   : ^render.Texture "noinspect",
-    material: ^render.Material,
+    mesh  : ^Mesh "noinspect",
+    material: ^Material,
     pos   : [3]f32,
     rot   : quaternion128,
     scale : [3]f32,
@@ -31,13 +27,13 @@ Entity_3D :: Entity;
 
 Entity_2D :: struct
 {
-    sprite : ^render.Sprite,
+    sprite : ^Sprite,
     pos    : [2]f32,
     scale  : [2]f32,
     angle  : f32,
 }
 
-make_entity :: proc(name: string, m: ^render.Mesh, mat: ^render.Material, pos: [3]f32 = {0, 0, 0}, dir: [3]f32 = {0, 0, 1}, scale: [3]f32 = {1, 1, 1}) -> (e: Entity)
+make_entity :: proc(name: string, m: ^Mesh, mat: ^Material, pos: [3]f32 = {0, 0, 0}, dir: [3]f32 = {0, 0, 1}, scale: [3]f32 = {1, 1, 1}) -> (e: Entity)
 {
     // @hack(Tyler): Compiler bug workaround (Issue #831)
     {
@@ -75,25 +71,25 @@ entity_transform :: proc(using e: Entity) -> [4][4]f32
     return cast([4][4]f32)transform;
 }
 
-draw_entity :: proc(s: ^render.Shader, using e: Entity)
+draw_entity :: proc(s: ^Shader, using e: Entity)
 {
     M := entity_transform(e);
     
-    render.set_uniform(s, "M", M);
+    set_uniform(s, "M", M);
     
-    render.set_uniform(s, "wireframe", e.wireframe);
+    set_uniform(s, "wireframe", e.wireframe);
     
-    render.set_material(s, material);
-    render.draw_model(s, mesh);
+    set_material(s, material);
+    draw_model(s, mesh);
 }
 
-get_bounds :: proc(using e: Entity) -> AABB
+entity_get_bounds :: proc(using e: Entity) -> AABB
 {
     M := entity_transform(e);
     return transform_aabb(bounds, M);
 }
 
-make_entity_2d :: proc(s: ^render.Sprite, pos, scale: [2]f32) -> (e: Entity_2D)
+make_entity_2d :: proc(s: ^Sprite, pos, scale: [2]f32) -> (e: Entity_2D)
 {
     e.sprite = s;
     e.pos = pos;
@@ -102,12 +98,12 @@ make_entity_2d :: proc(s: ^render.Sprite, pos, scale: [2]f32) -> (e: Entity_2D)
     return e;
 }
 
-draw_entity_2d :: proc(s: ^render.Shader, using e: ^Entity_2D)
+draw_entity_2d :: proc(s: ^Shader, using e: ^Entity_2D)
 {
-    render.draw_sprite(s, sprite, pos, scale);
+    draw_sprite(s, sprite, pos, scale);
 }
 
 update_entity_2d :: proc(using e: ^Entity_2D, dt: f32)
 {
-    render.update_sprite(sprite, dt);
+    update_sprite(sprite, dt);
 }

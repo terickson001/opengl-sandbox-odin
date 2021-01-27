@@ -1,12 +1,13 @@
-package rendering
+package engine
 
 import "core:fmt"
 import "core:math"
 import "core:math/linalg"
 
-import "core:strings"
 import "shared:gl"
 import "shared:image"
+
+import "core:strings"
 
 Texture_Info :: struct
 {
@@ -235,54 +236,6 @@ image_texture_from_file :: proc(filepath: string) -> Texture
     
     return image_texture_from_image(img);
 }
-
-/*
-activate_texture :: proc(s: ^Shader, t: ^Texture)
-{
-    gl.ActiveTexture(gl.TEXTURE0);
-    gl.BindTexture(gl.TEXTURE_2D, t.albedo);
-    set_uniform(s, "albedo_map", 0);
-    
-    gl.ActiveTexture(gl.TEXTURE1);
-    gl.BindTexture(gl.TEXTURE_2D, t.normal);
-    gl.Uniform1i(s.uniforms["normal_map"], 1);
-    set_uniform(s, "normal_map", 1);
-    
-    gl.ActiveTexture(gl.TEXTURE2);
-    gl.BindTexture(gl.TEXTURE_2D, t.metalness);
-    set_uniform(s, "metalness_map", 2);
-    
-    gl.ActiveTexture(gl.TEXTURE3);
-    gl.BindTexture(gl.TEXTURE_2D, t.roughness);
-    gl.Uniform1i(s.uniforms["roughness_map"], 3);
-    set_uniform(s, "roughness_map", 3);
-    
-    gl.ActiveTexture(gl.TEXTURE4);
-    gl.BindTexture(gl.TEXTURE_2D, t.ao);
-    gl.Uniform1i(s.uniforms["ao_map"], 4);
-    set_uniform(s, "ao_map", 4);
-}
-*/
-
-/*
-disable_texture :: proc(s: ^Shader, t: ^Texture)
-{
-    gl.ActiveTexture(gl.TEXTURE0);
-    gl.BindTexture(gl.TEXTURE_2D, 0);
-    
-    gl.ActiveTexture(gl.TEXTURE1);
-    gl.BindTexture(gl.TEXTURE_2D, 0);
-    
-    gl.ActiveTexture(gl.TEXTURE2);
-    gl.BindTexture(gl.TEXTURE_2D, 0);
-    
-    gl.ActiveTexture(gl.TEXTURE3);
-    gl.BindTexture(gl.TEXTURE_2D, 0);
-    
-    gl.ActiveTexture(gl.TEXTURE4);
-    gl.BindTexture(gl.TEXTURE_2D, 0);
-}
-*/
 
 destroy_texture :: proc(t: ^Texture)
 {

@@ -1,4 +1,4 @@
-package rendering
+package engine
 
 import "core:fmt"
 import "core:math"
@@ -6,7 +6,7 @@ import "core:math/linalg"
 
 import "shared:glfw"
 
-import "../control"
+import "../engine/control"
 
 Camera :: struct
 {

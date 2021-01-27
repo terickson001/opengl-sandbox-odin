@@ -1,10 +1,11 @@
-package rendering
+package engine
 
 import "core:fmt"
 import "core:os"
 
 import "shared:gl"
-import "../util"
+
+import "util"
 
 Animation_Key :: struct
 {
@@ -34,7 +35,7 @@ Sprite :: struct
     prev_anim  : ^Animation,
     key_index  : u8,
     
-    ctx        : Context,
+    ctx        : Render_Context,
 }
 
 
@@ -112,7 +113,7 @@ load_sprite :: proc(filepath: string) -> (s: Sprite)
 make_sprite :: proc() -> (s: Sprite)
 {
     s.animations = make(map[string]^Animation);
-    s.ctx = make_context(2, 0);
+    s.ctx = make_render_context(2, 0);
     
     return s;
 }
@@ -202,7 +203,7 @@ draw_sprite :: proc(shader: ^Shader, s: ^Sprite, pos, scale: [2]f32)
     uvs[4] = {unit_uv.x+unit_dim.x, unit_uv.y};
     uvs[5] = uvs[1];
     
-    bind_context(&s.ctx);
+    bind_render_context(&s.ctx);
     
     update_vbo(&s.ctx, 0, vertices[:]);
     update_vbo(&s.ctx, 1, uvs[:]);
@@ -212,12 +213,5 @@ draw_sprite :: proc(shader: ^Shader, s: ^Sprite, pos, scale: [2]f32)
     
     set_uniform(shader, "diffuse_sampler", 0);
     
-    /*
-        gl.Enable(gl.BLEND);
-        gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-    */
     gl.DrawArrays(gl.TRIANGLES, 0, 6);
-    /*
-        gl.Disable(gl.BLEND);
-    */
 }

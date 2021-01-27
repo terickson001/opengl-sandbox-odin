@@ -1,11 +1,11 @@
-package rendering
+package engine
 
 import "core:fmt"
 import "core:os"
 import "core:math/rand"
 
 import "shared:gl"
-import "../util"
+import "util"
 
 Tile_Descriptor :: struct
 {
@@ -153,7 +153,7 @@ load_tilemap :: proc(filepath: string) -> (tilemap: Tile_Map)
     return tilemap;
 }
 
-init_variants :: proc(tilemap: ^Tile_Map, tileset: ^Tile_Set)
+init_tile_variants :: proc(tilemap: ^Tile_Map, tileset: ^Tile_Set)
 {
     tilemap.set = tileset;
     for row in &tilemap.tiles
@@ -174,7 +174,7 @@ init_variants :: proc(tilemap: ^Tile_Map, tileset: ^Tile_Set)
     }
 }
 
-draw_tilemap :: proc(shader: ^Shader, ctx: ^Context, tilemap: ^Tile_Map, origin: [2]f32, scale: [2]f32)
+draw_tilemap :: proc(shader: ^Shader, ctx: ^Render_Context, tilemap: ^Tile_Map, origin: [2]f32, scale: [2]f32)
 {
     vertices := make([dynamic][3]f32);
     uvs := make([dynamic][2]f32);
@@ -210,11 +210,10 @@ draw_tilemap :: proc(shader: ^Shader, ctx: ^Context, tilemap: ^Tile_Map, origin:
         pos.y += scale.y;
     }
     
-    bind_context(ctx);
+    bind_render_context(ctx);
     update_vbo(ctx, 0, vertices[:]);
     update_vbo(ctx, 1, uvs[:]);
     
-    // gl.UseProgram(shader.id);
     gl.ActiveTexture(gl.TEXTURE0);
     gl.BindTexture(gl.TEXTURE_2D, tilemap.set.atlas.id);
     

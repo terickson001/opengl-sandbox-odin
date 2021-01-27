@@ -1,4 +1,4 @@
-package rendering
+package engine
 
 @static cube_verts := [24][3]f32{
     { 1, -1,  1}, { 1, -1, -1}, { 1,  1,  1}, { 1,  1, -1}, // Right

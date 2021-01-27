@@ -1,4 +1,4 @@
-package edit
+package engine
 
 import "core:fmt"
 import "core:math/linalg"
@@ -9,12 +9,8 @@ import "core:strings"
 import "core:mem"
 import "core:slice"
 
-import "../asset"
-import "../gui"
-import render "../rendering"
-import "../scene"
-import "../entity"
-import "../control"
+import "gui"
+import "control"
 
 import "core:os"
 import "shared:gl"
@@ -28,7 +24,7 @@ Editor :: struct
     entity_window: gui.Window,
     settings_window: gui.Window,
     
-    selected_entity: ^entity.Entity,
+    selected_entity: ^Entity,
     
     gizmo_mode: Gizmo_Mode,
     gizmo: Gizmo,
@@ -43,15 +39,15 @@ Gizmo_Mode :: enum u8
 
 Gizmo :: struct
 {
-    parent: ^entity.Entity,
+    parent: ^Entity,
     
-    selected: ^entity.Entity,
+    selected: ^Entity,
     offset: f32,
     start_pos: [3]f32,
     start_rot: quaternion128,
     
-    shader: ^render.Shader,
-    entities: [dynamic]entity.Entity,
+    shader: ^Shader,
+    entities: [dynamic]Entity,
 }
 
 @static editor: Editor;
@@ -68,14 +64,14 @@ init_editor :: proc(ctx: ^gui.Context)
     init_gizmo();
 }
 
-open_spawn_menu :: proc(win: render.Window, ctx: ^gui.Context, scn: ^scene.Scene)
+open_spawn_menu :: proc(win: Window, ctx: ^gui.Context, scn: ^Scene)
 {
     using editor;
     if !enabled do return;
     spawn_menu.open = true;
 }
 
-update_editor :: proc(win: render.Window, ctx: ^gui.Context, scn: ^scene.Scene)
+update_editor :: proc(win: Window, ctx: ^gui.Context, scn: ^Scene)
 {
     using editor;
     
@@ -83,7 +79,7 @@ update_editor :: proc(win: render.Window, ctx: ^gui.Context, scn: ^scene.Scene)
     
     if !ctx.capture_mouse && control.mouse_pressed(0)
     {
-        view_mat := render.get_camera_view(scn.camera);
+        view_mat := get_camera_view(scn.camera);
         mouse_ray := get_mouse_ray(win, scn.camera, view_mat, scn.camera.projection);
         select_entity(scene_test_ray(scn, mouse_ray));
     }
@@ -148,8 +144,8 @@ update_editor :: proc(win: render.Window, ctx: ^gui.Context, scn: ^scene.Scene)
             }
             point := gizmo.parent.pos + DIRS[axis-'x']*gizmo.offset;
             ray := get_mouse_ray(win, scn.camera, scn.camera.view, scn.camera.projection);
-            plane := entity.Plane{point, normal};
-            t, ok := entity.cast_ray_plane(ray, plane);
+            plane := Plane{point, normal};
+            t, ok := cast_ray_plane(ray, plane);
             if !ok do break;
             
             intersect := ray.origin + ray.dir*t;
@@ -162,8 +158,8 @@ update_editor :: proc(win: render.Window, ctx: ^gui.Context, scn: ^scene.Scene)
             rel_x := DIRS[(axis-'x'+1)%3];
             ray := get_mouse_ray(win, scn.camera, scn.camera.view, scn.camera.projection);
             
-            plane := entity.Plane{gizmo.parent.pos, normal};
-            t, ok := entity.cast_ray_plane(ray, plane);
+            plane := Plane{gizmo.parent.pos, normal};
+            t, ok := cast_ray_plane(ray, plane);
             if !ok do break;
             intersect := ray.origin + ray.dir*t;
             delta := intersect - gizmo.parent.pos;
@@ -189,7 +185,7 @@ closest_point :: proc(a, b: [3]f32, p: [3]f32) -> [3]f32
     return proj;
 }
 
-draw_gizmo :: proc(shader: ^render.Shader)
+draw_gizmo :: proc(shader: ^Shader)
 {
     using editor;
     if gizmo.parent == nil do return;
@@ -197,11 +193,11 @@ draw_gizmo :: proc(shader: ^render.Shader)
     for e in &gizmo.entities
     {
         e.pos = gizmo.parent.pos;
-        entity.draw_entity(shader, e);
+        draw_entity(shader, e);
     }
 }
 
-select_entity :: proc(e: ^entity.Entity)
+select_entity :: proc(e: ^Entity)
 {
     using editor;
     
@@ -218,7 +214,7 @@ select_entity :: proc(e: ^entity.Entity)
     }
 }
 
-get_mouse_clip :: proc(win: render.Window) -> [3]f32
+get_mouse_clip :: proc(win: Window) -> [3]f32
 {
     mouse := control.get_mouse_pos();
     clipspace := [3]f32{
@@ -229,7 +225,7 @@ get_mouse_clip :: proc(win: render.Window) -> [3]f32
     return clipspace;
 }
 
-get_mouse_ray :: proc(win: render.Window, cam: render.Camera, view, projection: [4][4]f32) -> entity.Ray
+get_mouse_ray :: proc(win: Window, cam: Camera, view, projection: [4][4]f32) -> Ray
 {
     mouse := control.get_mouse_pos();
     clipspace := [4]f32{
@@ -244,27 +240,27 @@ get_mouse_ray :: proc(win: render.Window, cam: render.Camera, view, projection: 
     cameraspace = {cameraspace.x, cameraspace.y, -1, 0};
     worldspace := mul(matrix4_inverse(cast(Matrix4)view), cameraspace);
     
-    ray: entity.Ray;
+    ray: Ray;
     ray.origin = cam.pos;
     ray.dir = normalize(swizzle(worldspace, 0, 1, 2));
     
     return ray;
 }
 
-scene_test_ray :: proc(scn: ^scene.Scene, ray: entity.Ray) -> ^entity.Entity
+scene_test_ray :: proc(scn: ^Scene, ray: Ray) -> ^Entity
 {
     using editor;
     min_t := f32(math.F32_MAX);
-    min_entity: ^entity.Entity;
+    min_entity: ^Entity;
     
     if gizmo.parent != nil
     {
         for e in &gizmo.entities
         {
-            t, succ := entity.cast_ray_aabb(ray, entity.get_bounds(e));
+            t, succ := cast_ray_aabb(ray, entity_get_bounds(e));
             if !succ do continue;
             
-            t, succ = entity.cast_ray_triangles(ray, e);
+            t, succ = cast_ray_triangles(ray, e);
             if succ && t < min_t
             {
                 min_t = t;
@@ -291,8 +287,8 @@ scene_test_ray :: proc(scn: ^scene.Scene, ray: entity.Ray) -> ^entity.Entity
                     case 'y': normal = {0, 0, 1};
                     case 'z': normal = {1, 0, 0};
                 }
-                plane := entity.Plane{gizmo.parent.pos, normal};
-                t, ok := entity.cast_ray_plane(ray, plane);
+                plane := Plane{gizmo.parent.pos, normal};
+                t, ok := cast_ray_plane(ray, plane);
                 if !ok do break;
                 intersect := ray.origin + ray.dir*t;
                 
@@ -303,8 +299,8 @@ scene_test_ray :: proc(scn: ^scene.Scene, ray: entity.Ray) -> ^entity.Entity
                 normal := DIRS[axis-'x'];
                 rel_x := DIRS[(axis-'x'+1)%3];
                 
-                plane := entity.Plane{gizmo.parent.pos, normal};
-                t, ok := entity.cast_ray_plane(ray, plane);
+                plane := Plane{gizmo.parent.pos, normal};
+                t, ok := cast_ray_plane(ray, plane);
                 if !ok do break;
                 intersect := ray.origin + ray.dir*t;
                 delta := intersect - gizmo.parent.pos;
@@ -325,11 +321,11 @@ scene_test_ray :: proc(scn: ^scene.Scene, ray: entity.Ray) -> ^entity.Entity
     
     for e in &scn.entities
     {
-        t, succ := entity.cast_ray_aabb(ray, entity.get_bounds(e));
+        t, succ := cast_ray_aabb(ray, entity_get_bounds(e));
         if !succ do continue;
         
-        if e.name == "wall_back" do fmt.printf("HIT AABB\n %v\n %v\n", e.bounds, entity.get_bounds(e));
-        t, succ = entity.cast_ray_triangles(ray, e);
+        if e.name == "wall_back" do fmt.printf("HIT AABB\n %v\n %v\n", e.bounds, entity_get_bounds(e));
+        t, succ = cast_ray_triangles(ray, e);
         if succ && t < min_t
         {
             if e.name == "wall_back" do fmt.printf("HIT MESH\n");
@@ -373,7 +369,7 @@ display_type :: proc(ctx: ^gui.Context, label: string, data: rawptr, ti: ^rt.Typ
     }
 }
 
-display_entity_data :: proc(ctx: ^gui.Context, e: ^entity.Entity)
+display_entity_data :: proc(ctx: ^gui.Context, e: ^Entity)
 {
     if e == nil do return;
     using rt;
@@ -400,18 +396,18 @@ init_gizmo :: proc()
     INT  :: math.TAU / LOD;
     DIRS := [3][3]f32{{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
     
-    cone:     ^render.Mesh;
-    cylinder: ^render.Mesh;
-    ring:     ^render.Mesh;
+    cone:     ^Mesh;
+    cylinder: ^Mesh;
+    ring:     ^Mesh;
     for dir, d in DIRS
     {
         rel_x := DIRS[(d+1)%3];
         rel_y := DIRS[(d+2)%3];
         rel_z := DIRS[d];
         
-        cone     = new(render.Mesh);
-        cylinder = new(render.Mesh);
-        ring     = new(render.Mesh);
+        cone     = new(Mesh);
+        cylinder = new(Mesh);
+        ring     = new(Mesh);
         cone.vertices     = make([][3]f32, LOD*3);
         cylinder.vertices = make([][3]f32, LOD*6);
         ring.vertices     = make([][3]f32, LOD*6 * LOD*5);
@@ -503,22 +499,22 @@ init_gizmo :: proc()
             }
         }
         
-        material := asset.register(&asset.global_catalog, render.make_material(albedo = dir, shaded = false), fmt.aprintf("gizmo_color_%c", 'x'+d));
+        material := register_asset(&global_catalog, make_material(albedo = dir, shaded = false), fmt.aprintf("gizmo_color_%c", 'x'+d));
         
-        cone.ctx = render.make_context(1, 0);
-        cylinder.ctx = render.make_context(1, 0);
-        ring.ctx = render.make_context(1, 0);
-        render.bind_context(&cone.ctx);
-        render.update_vbo(&cone.ctx, 0, cone.vertices);
-        render.bind_context(&cylinder.ctx);
-        render.update_vbo(&cylinder.ctx, 0, cylinder.vertices);
-        render.bind_context(&ring.ctx);
-        render.update_vbo(&ring.ctx, 0, ring.vertices);
-        append(&gizmo.entities, entity.make_entity(fmt.aprintf("trn_%c_head_gizmo", 'x'+d), cone, material));
-        append(&gizmo.entities, entity.make_entity(fmt.aprintf("trn_%c_stem_gizmo", 'x'+d), cylinder, material));
-        append(&gizmo.entities, entity.make_entity(fmt.aprintf("rot_%c_stem_gizmo", 'x'+d), ring, material));
+        cone.ctx = make_render_context(1, 0);
+        cylinder.ctx = make_render_context(1, 0);
+        ring.ctx = make_render_context(1, 0);
+        bind_render_context(&cone.ctx);
+        update_vbo(&cone.ctx, 0, cone.vertices);
+        bind_render_context(&cylinder.ctx);
+        update_vbo(&cylinder.ctx, 0, cylinder.vertices);
+        bind_render_context(&ring.ctx);
+        update_vbo(&ring.ctx, 0, ring.vertices);
+        append(&gizmo.entities, make_entity(fmt.aprintf("trn_%c_head_gizmo", 'x'+d), cone, material));
+        append(&gizmo.entities, make_entity(fmt.aprintf("trn_%c_stem_gizmo", 'x'+d), cylinder, material));
+        append(&gizmo.entities, make_entity(fmt.aprintf("rot_%c_stem_gizmo", 'x'+d), ring, material));
         
-        gizmo.shader = asset.get_shader(&asset.global_catalog, "shader/3d.glsl");
+        gizmo.shader = catalog_get_shader(&global_catalog, "shader/3d.glsl");
     }
     
 }

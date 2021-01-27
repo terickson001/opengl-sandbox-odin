@@ -1,13 +1,13 @@
-
-package rendering
+package engine
 
 import "core:fmt"
-import "shared:gl"
 import "core:mem"
 import "core:intrinsics"
 import "core:runtime"
 
-Context :: struct
+import "shared:gl"
+
+Render_Context :: struct
 {
     vao :   u32,
     vbo : []u32,
@@ -15,7 +15,7 @@ Context :: struct
     ebo :   u32,
 }
 
-make_context :: proc(num_vbos: u32, num_sbos: u32, has_ebo := false) -> (ctx: Context)
+make_render_context :: proc(num_vbos: u32, num_sbos: u32, has_ebo := false) -> (ctx: Render_Context)
 {
     using ctx;
     
@@ -41,7 +41,7 @@ make_context :: proc(num_vbos: u32, num_sbos: u32, has_ebo := false) -> (ctx: Co
     return ctx;
 }
 
-bind_context :: proc(using ctx: ^Context)
+bind_render_context :: proc(using ctx: ^Render_Context)
 {
     gl.BindVertexArray(vao);
 }
@@ -65,7 +65,7 @@ gl_type :: proc($T: typeid) -> u32
 }
 
 init_vbo :: proc{init_vbo_array, init_vbo_basic};
-init_vbo_array :: proc(using ctx: ^Context, vbo_idx: int, $T: typeid/[$N]$V)
+init_vbo_array :: proc(using ctx: ^Render_Context, vbo_idx: int, $T: typeid/[$N]$V)
 {
     gl.GenBuffers(1, &vbo[vbo_idx]);
     gl.EnableVertexAttribArray(u32(vbo_idx));
@@ -76,7 +76,7 @@ init_vbo_array :: proc(using ctx: ^Context, vbo_idx: int, $T: typeid/[$N]$V)
     
     gl.VertexAttribPointer(u32(vbo_idx), stride, type, gl.FALSE, 0, nil);
 }
-init_vbo_basic :: proc(using ctx: ^Context, vbo_idx: int, $T: typeid)
+init_vbo_basic :: proc(using ctx: ^Render_Context, vbo_idx: int, $T: typeid)
 {
     gl.GenBuffers(1, &vbo[vbo_idx]);
     gl.EnableVertexAttribArray(u32(vbo_idx));
@@ -88,8 +88,7 @@ init_vbo_basic :: proc(using ctx: ^Context, vbo_idx: int, $T: typeid)
     gl.VertexAttribPointer(u32(vbo_idx), stride, type, gl.FALSE, 0, nil);
 }
 
-
-update_vbo :: proc(using ctx: ^Context, vbo_idx: int, data: []$T)
+update_vbo :: proc(using ctx: ^Render_Context, vbo_idx: int, data: []$T)
 {
     if vbo[vbo_idx] == ~u32(0)
     {
@@ -123,13 +122,13 @@ update_vbo :: proc(using ctx: ^Context, vbo_idx: int, data: []$T)
     gl.BufferData(gl.ARRAY_BUFFER, len(data)*size_of(T), &data[0], gl.STATIC_DRAW);
 }
 
-update_ebo :: proc(using ctx: ^Context, data: []u16)
+update_ebo :: proc(using ctx: ^Render_Context, data: []u16)
 {
     gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ebo);
     gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, len(data)*size_of(u16), &data[0], gl.STATIC_DRAW);
 }
 
-delete_context :: proc(using ctx: ^Context)
+delete_render_context :: proc(using ctx: ^Render_Context)
 {
     if vbo != nil
     {

@@ -1,7 +1,6 @@
-package entity
+package engine
 
 import "core:math/linalg"
-import render "../rendering"
 
 Ray :: struct
 {
@@ -21,7 +20,7 @@ Plane :: struct
     normal: [3]f32,
 }
 
-get_mesh_bounds :: proc(mesh: ^render.Mesh) -> AABB
+get_mesh_bounds :: proc(mesh: ^Mesh) -> AABB
 {
     using box: AABB;
     for v in mesh.vertices

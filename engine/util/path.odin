@@ -1,6 +1,6 @@
 package util
 
-@private
+@(private="file")
 is_sep :: proc(c: byte) -> bool
 {
     result := c == '/';
@@ -14,7 +14,7 @@ is_sep :: proc(c: byte) -> bool
 when ODIN_OS == "windows" do SEP :: "\\";
 else do SEP :: "/";
 
-dir :: proc(path: string) -> string
+path_dir :: proc(path: string) -> string
 {
     idx := len(path)-1;
     for idx >= 0
@@ -36,7 +36,7 @@ dir :: proc(path: string) -> string
     return "";
 }
 
-base :: proc(path: string, keep_ext := true) -> string
+path_base :: proc(path: string, keep_ext := true) -> string
 {
     end := len(path);
     idx := end-1;
@@ -65,12 +65,12 @@ base :: proc(path: string, keep_ext := true) -> string
     return path[:end];
 }
 
-name :: proc(path: string) -> string
+path_name :: proc(path: string) -> string
 {
-    return base(path, false);
+    return path_base(path, false);
 }
 
-ext :: proc(path: string) -> string
+path_ext :: proc(path: string) -> string
 {
     idx := len(path)-1;
     

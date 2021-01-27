@@ -1,4 +1,4 @@
-package rendering
+package engine
 
 import "core:fmt"
 import "core:os"
@@ -7,7 +7,7 @@ import "core:strings"
 import "shared:gl"
 import "shared:image"
 
-import "../util"
+import "util"
 
 Glyph_Metrics :: struct
 {
@@ -30,7 +30,7 @@ Field_Info :: struct
 Font :: struct
 {
     texture : Texture,
-    ctx     : Context,
+    ctx     : Render_Context,
     info    : Field_Info,
 }
 
@@ -110,7 +110,7 @@ load_font :: proc(name: string) -> (font: Font)
     
     gl.TexParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     
-    font.ctx = make_context(2, 0);
+    font.ctx = make_render_context(2, 0);
     
     filepath := fmt.tprintf("%s_msdfmetrics", name);
     font.info = load_msdf_metrics(filepath);
@@ -210,7 +210,7 @@ draw_text :: proc(s: ^Shader, font: ^Font, text: string, pos: [2]f32, size: int)
     
     gl.UseProgram(s.id);
     
-    bind_context(&font.ctx);
+    bind_render_context(&font.ctx);
     update_vbo(&font.ctx, 0, vertices[:]);
     update_vbo(&font.ctx, 1, uvs[:]);
     
@@ -219,7 +219,5 @@ draw_text :: proc(s: ^Shader, font: ^Font, text: string, pos: [2]f32, size: int)
     gl.ActiveTexture(gl.TEXTURE0);
     gl.BindTexture(gl.TEXTURE_2D_ARRAY, font.texture.id);
     
-    /* gl.Enable(gl.BLEND); */
-    /* gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); */
     gl.DrawArrays(gl.TRIANGLES, 0, i32(len(vertices)));
 }

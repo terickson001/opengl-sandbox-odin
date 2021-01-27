@@ -1,11 +1,12 @@
-package rendering
-
-import "../util"
-import "shared:gl"
+package engine
 
 import "core:math/linalg"
 import "core:fmt"
 import "core:os"
+
+import "shared:gl"
+
+import "util"
 
 // @todo(Tyler): near-far plane calculation
 
@@ -24,7 +25,7 @@ Light :: struct
     depth_index: i32,
 }
 
-init_depth_maps :: proc()
+init_point_depth_maps :: proc()
 {
     gl.GenTextures(1, &point_depth_maps);
     gl.BindTexture(gl.TEXTURE_CUBE_MAP_ARRAY, point_depth_maps);
@@ -85,7 +86,7 @@ start_point_depth_pass :: proc(s: ^Shader)
     gl.Clear(gl.DEPTH_BUFFER_BIT);
 }
 
-setup_light_pass :: proc(light: Light, s: ^Shader)
+setup_point_light_pass :: proc(light: Light, s: ^Shader)
 {
     proj := linalg.matrix4_perspective(linalg.radians(f32(90.0)), 1, 0.1, light.extent);
     pos := cast(linalg.Vector3)light.pos;

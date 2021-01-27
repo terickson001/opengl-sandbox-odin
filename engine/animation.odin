@@ -1,4 +1,4 @@
-package model
+package engine
 
 Keyframed_Animation :: struct
 {
@@ -7,10 +7,10 @@ Keyframed_Animation :: struct
     frame_rate: int,
     duration: f64,
     
-    nodes: []Node,
+    nodes: []Bone,
 }
 
-Node :: struct
+Bone:: struct
 {
     
 }

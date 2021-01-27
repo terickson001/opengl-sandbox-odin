@@ -1,4 +1,4 @@
-package rendering
+package engine
 
 import "shared:gl"
 
@@ -51,9 +51,4 @@ debug_texture :: proc(shader: ^Shader, texture: u32)
         gl.DeleteBuffers(1, &uvbuff);
         gl.DeleteVertexArrays(1, &vao);
     */
-}
-
-debug_cubemap :: proc(shader: ^Shader, texture: u32)
-{
-    
 }

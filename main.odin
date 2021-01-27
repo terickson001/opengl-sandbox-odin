@@ -15,19 +15,14 @@ import "shared:glfw"
 import "shared:image"
 import gfnt "shared:gl_font"
 
-import render "rendering"
-import "control"
-import "gui"
-import "util"
-import "asset"
-import "edit"
-import "scene"
-import "entity"
+import core "engine"
+
+import "engine/control"
+import "engine/gui"
+import "engine/util"
 
 import "shared:compress/zlib"
 import "shared:profile"
-
-// @cleanup(Tyler): Unpackage _everything_, the structure of this project is terrible
 
 // @todo: Ambient Occlusion
 // @todo: Directional Lights
@@ -46,12 +41,14 @@ glfw_poll :: proc()
 
 main :: proc()
 {
+    using core;
+    
     when ODIN_DEBUG do profile.scoped_zone();
     
     init_glfw();
     defer glfw.terminate();
     
-    window := render.init_window(1024, 768, "[$float$] Hello, World!");
+    window := init_window(1024, 768, "[$float$] Hello, World!");
     glfw.make_context_current(window.handle);
     
     init_gl();
@@ -76,48 +73,48 @@ main :: proc()
     glfw.set_cursor_pos(window.handle, f64(window.width/2), f64(window.height/2));
     glfw.poll_events();
     
-    render.global_sampler_map = util.make_bitmap(2048);
-    for _ in 0..7 do render.aquire_sampler();
+    global_sampler_map = util.make_bitmap(2048);
+    for _ in 0..7 do aquire_sampler();
     
-    asset.global_catalog = asset.make_catalog();
-    suzanne_mat := render.make_material(asset.get_texture(&asset.global_catalog, "res/rustediron2_basecolor.png"),
-                                        asset.get_texture(&asset.global_catalog, "res/rustediron2_normal.png"),
-                                        asset.get_texture(&asset.global_catalog, "res/rustediron2_metallic.png"),
-                                        asset.get_texture(&asset.global_catalog, "res/rustediron2_roughness.png"),
-                                        );
+    global_catalog = make_catalog();
+    suzanne_mat := make_material(catalog_get_texture(&global_catalog, "res/rustediron2_basecolor.png"),
+                                 catalog_get_texture(&global_catalog, "res/rustediron2_normal.png"),
+                                 catalog_get_texture(&global_catalog, "res/rustediron2_metallic.png"),
+                                 catalog_get_texture(&global_catalog, "res/rustediron2_roughness.png"),
+                                 );
     
-    suzanne_m := asset.get_mesh(&asset.global_catalog, "res/suzanne.obj");
+    suzanne_m := catalog_get_mesh(&global_catalog, "res/suzanne.obj");
     
-    cube := asset.get_mesh(&asset.global_catalog, "res/cube.fbx");
+    cube := catalog_get_mesh(&global_catalog, "res/cube.fbx");
     
     wall_mesh := gen_wall({8, 8, 1});
     
-    cobble := render.make_material(
-                                   asset.get_texture(&asset.global_catalog, "res/slso_brick_variants.png"),
-                                   asset.get_texture(&asset.global_catalog, "res/slso_brick_normal.png"),
-                                   asset.get_texture(&asset.global_catalog, "res/slso_brick_specular.png"),
-                                   );
+    cobble := make_material(
+                            catalog_get_texture(&global_catalog, "res/slso_brick_variants.png"),
+                            catalog_get_texture(&global_catalog, "res/slso_brick_normal.png"),
+                            catalog_get_texture(&global_catalog, "res/slso_brick_specular.png"),
+                            );
     
-    scn := scene.make_scene();
-    scene.add_entity(&scn, entity.make_entity("suzanne", suzanne_m, &suzanne_mat, {0, 0, 0}, {0, 0, -1}, {0.5, 0.5, 0.5}));
-    scene.add_entity(&scn, entity.make_entity("wall_back",   &wall_mesh, &cobble, { 0,     0,    -4.5}, { 0,  0, -1}));
-    scene.add_entity(&scn, entity.make_entity("wall_left",   &wall_mesh, &cobble, {-4.5,   0,     0},   { 1,  0,  0}));
-    scene.add_entity(&scn, entity.make_entity("wall_right",  &wall_mesh, &cobble, { 4.5,   0,     0},   {-1,  0,  0}));
-    scene.add_entity(&scn, entity.make_entity("wall_front",  &wall_mesh, &cobble, { 0,     0,     4.5}, { 0,  0,  1}));
-    scene.add_entity(&scn, entity.make_entity("wall_bottom", &wall_mesh, &cobble, { 0,    -4.5,   0},   { 0,  1,  0}));
-    scene.add_entity(&scn, entity.make_entity("wall_top",    &wall_mesh, &cobble, { 0,     4.5,   0},   { 0, -1,  0}));
+    scn := make_scene();
+    scene_add_entity(&scn, make_entity("suzanne", suzanne_m, &suzanne_mat, {0, 0, 0}, {0, 0, -1}, {0.5, 0.5, 0.5}));
+    scene_add_entity(&scn, make_entity("wall_back",   &wall_mesh, &cobble, { 0,     0,    -4.5}, { 0,  0, -1}));
+    scene_add_entity(&scn, make_entity("wall_left",   &wall_mesh, &cobble, {-4.5,   0,     0},   { 1,  0,  0}));
+    scene_add_entity(&scn, make_entity("wall_right",  &wall_mesh, &cobble, { 4.5,   0,     0},   {-1,  0,  0}));
+    scene_add_entity(&scn, make_entity("wall_front",  &wall_mesh, &cobble, { 0,     0,     4.5}, { 0,  0,  1}));
+    scene_add_entity(&scn, make_entity("wall_bottom", &wall_mesh, &cobble, { 0,    -4.5,   0},   { 0,  1,  0}));
+    scene_add_entity(&scn, make_entity("wall_top",    &wall_mesh, &cobble, { 0,     4.5,   0},   { 0, -1,  0}));
     
     
-    shader := asset.get_shader(&asset.global_catalog, "shader/3d.glsl");
-    shader_2d := asset.get_shader(&asset.global_catalog, "shader/2d.glsl");
-    text_shader := asset.get_shader(&asset.global_catalog, "shader/text.glsl");
-    depth_shader := asset.get_shader(&asset.global_catalog, "shader/depth.glsl");
+    shader := catalog_get_shader(&global_catalog, "shader/3d.glsl");
+    shader_2d := catalog_get_shader(&global_catalog, "shader/2d.glsl");
+    text_shader := catalog_get_shader(&global_catalog, "shader/text.glsl");
+    depth_shader := catalog_get_shader(&global_catalog, "shader/depth.glsl");
     
     gl.ClearColor(0.0, 0.3, 0.4, 0.0);
     
-    sprite := render.load_sprite("res/adventurer.sprite");
-    render.sprite_set_anim(&sprite, "running");
-    adventurer := entity.make_entity_2d(&sprite, [2]f32{f32(window.width)/2-160, f32(window.height)/2-160}, [2]f32{10,10});
+    sprite := load_sprite("res/adventurer.sprite");
+    sprite_set_anim(&sprite, "running");
+    adventurer := make_entity_2d(&sprite, [2]f32{f32(window.width)/2-160, f32(window.height)/2-160}, [2]f32{10,10});
     
     sizes := [?]int{72, 68, 64, 60, 56, 52, 48, 44, 40, 36, 32, 28, 24, 20, 16, 12};
     codepoints: [95]rune;
@@ -143,35 +140,35 @@ main :: proc()
     
     view_mat: [4][4]f32;
     cam_pos := [3]f32{0, 2, 0};
-    scene.add_camera(&scn, render.make_camera(cam_pos, cam_pos*-1, 3.0, 0.15));
+    scn.camera = make_camera(cam_pos, cam_pos*-1, 3.0, 0.15);
     scn.camera.projection = cast([4][4]f32)linalg.matrix4_perspective(
                                                                       linalg.radians(f32(75.0)),
                                                                       f32(window.width) / f32(window.height),
                                                                       0.1, 100
                                                                       );
     
-    render.init_depth_maps();
+    init_point_depth_maps();
     
     /*
-        lights := [?]render.Light{
-            render.make_light({ 0,  0,  3}, {209.0/255,  75.0/255,  75.0/255}),
-            render.make_light({ 0,  0,  3}, { 94.0/255, 209.0/255,  75.0/255}),
-            render.make_light({ 0,  0,  3}, {75.0/255,  209.0/255, 202.0/255}),
-            render.make_light({ 0,  0,  3}, {84.0/255,   75.0/255, 209.0/255}),
+        lights := [?]Light{
+            make_light({ 0,  0,  3}, {209.0/255,  75.0/255,  75.0/255}),
+            make_light({ 0,  0,  3}, { 94.0/255, 209.0/255,  75.0/255}),
+            make_light({ 0,  0,  3}, {75.0/255,  209.0/255, 202.0/255}),
+            make_light({ 0,  0,  3}, {84.0/255,   75.0/255, 209.0/255}),
         };
     */
     
     
-    lights := [?]render.Light{
-        render.make_light({ 0,  0,  3}, {1, 0, 0}),
-        render.make_light({ 0,  0,  3}, {0, 1, 0}),
-        render.make_light({ 0,  0,  3}, {0, 0, 1}),
-        render.make_light({ 0,  0,  3}, {1, 0, 0}),
+    lights := [?]Light{
+        make_light({ 0,  0,  3}, {1, 0, 0}),
+        make_light({ 0,  0,  3}, {0, 1, 0}),
+        make_light({ 0,  0,  3}, {0, 0, 1}),
+        make_light({ 0,  0,  3}, {1, 0, 0}),
     };
     
     for light in &lights
     {
-        render.add_light(&light);
+        add_light(&light);
     }
     light_pow_base := f32(3);
     
@@ -179,20 +176,20 @@ main :: proc()
     gui_ctx, gui_state := init_gui(window);
     gui_ctx.style.font = cast(rawptr)&font;
     
-    gui_render_ctx := render.make_context(2, 0);
+    gui_render_ctx := make_render_context(2, 0);
     
-    edit.init_editor(&gui_ctx);
+    init_editor(&gui_ctx);
     
-    tileset := render.load_tileset("res/test.tileset");
-    tilemap := render.load_tilemap("res/test.tilemap");
-    render.init_variants(&tilemap, &tileset);
+    tileset := load_tileset("res/test.tileset");
+    tilemap := load_tilemap("res/test.tilemap");
+    init_tile_variants(&tilemap, &tileset);
     
     gl.UseProgram(shader.id);
-    render.set_uniform(shader, "exposure", 1.0);
+    set_uniform(shader, "exposure", 1.0);
     
     thread.run(glfw_poll);
     
-    mouse_ray: entity.Ray;
+    mouse_ray: Ray;
     updated: bool;
     for glfw.get_key(window.handle, glfw.KEY_ESCAPE) != glfw.PRESS &&
         !glfw.window_should_close(window.handle)
@@ -205,10 +202,10 @@ main :: proc()
             updated = true;
             if control.key_pressed('[')
             {
-                render.toggle_camera(window, &scn.camera);
-                edit.toggle_editor();
+                toggle_camera(window, &scn.camera);
+                toggle_editor();
             }
-            render.update_camera(window, &scn.camera, time_step);
+            update_camera(window, &scn.camera, time_step);
             
             update_gui_inputs(&gui_ctx, f64(time_step));
             gui.begin(&gui_ctx);
@@ -216,13 +213,13 @@ main :: proc()
             {
                 if control.key_pressed('E') 
                 {
-                    edit.open_spawn_menu(window, &gui_ctx, &scn);
+                    open_spawn_menu(window, &gui_ctx, &scn);
                 }
-                edit.update_editor(window, &gui_ctx, &scn);
+                update_editor(window, &gui_ctx, &scn);
             }
             gui.end(&gui_ctx);
             
-            entity.update_entity_2d(&adventurer, time_step);
+            update_entity_2d(&adventurer, time_step);
             
             size := adventurer.sprite.dim * adventurer.scale;
             h := f32(window.height)-size.y;
@@ -251,37 +248,37 @@ main :: proc()
         if updated
         {
             nb_frames += 1;
-            scn.camera.view = render.get_camera_view(scn.camera);
+            scn.camera.view = get_camera_view(scn.camera);
             
-            render.start_point_depth_pass(depth_shader);
+            start_point_depth_pass(depth_shader);
             for light in lights
             {
-                render.setup_light_pass(light, depth_shader);
-                scene.render(&scn, depth_shader);
+                setup_point_light_pass(light, depth_shader);
+                scene_render(&scn, depth_shader);
             }
             
             gl.BindFramebuffer(gl.FRAMEBUFFER, 0);
             gl.Viewport(0, 0, i32(window.width), i32(window.height));
             gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
             gl.UseProgram(shader.id);
-            render.set_uniform(shader, "V", scn.camera.view);
-            render.set_uniform(shader, "P", scn.camera.projection);
-            render.set_uniform(shader, "eye_position_m", scn.camera.pos);
-            render.set_uniform(shader, "lights", lights);
-            render.set_uniform(shader, "resolution", window.res);
-            render.set_uniform(shader, "point_depth_maps", 6);
+            set_uniform(shader, "V", scn.camera.view);
+            set_uniform(shader, "P", scn.camera.projection);
+            set_uniform(shader, "eye_position_m", scn.camera.pos);
+            set_uniform(shader, "lights", lights);
+            set_uniform(shader, "resolution", window.res);
+            set_uniform(shader, "point_depth_maps", 6);
             gl.ActiveTexture(gl.TEXTURE6);
-            gl.BindTexture(gl.TEXTURE_CUBE_MAP_ARRAY, render.point_depth_maps);
+            gl.BindTexture(gl.TEXTURE_CUBE_MAP_ARRAY, point_depth_maps);
             
-            scene.render(&scn, shader);
+            scene_render(&scn, shader);
             
             gl.Clear(gl.DEPTH_BUFFER_BIT);
-            edit.draw_gizmo(shader);
+            draw_gizmo(shader);
             
             /* 2D */
             gl.UseProgram(shader_2d.id);
-            render.set_uniform(shader_2d, "resolution", window.res);
-            render.debug_texture(shader, suzanne_mat.albedo.(^render.Texture).id);
+            set_uniform(shader_2d, "resolution", window.res);
+            debug_texture(shader, suzanne_mat.albedo.(^Texture).id);
             gfnt.set_state();
             {
                 _, fps_w, _ := gfnt.parse_string_noallocate(&font, string(fps_str[:]), 24, nil);
@@ -293,8 +290,8 @@ main :: proc()
             //gl.DepthMask(gl.FALSE);
             //gl.Disable(gl.DEPTH_TEST);
             {
-                // entity.draw_entity_2d(shader_2d, &adventurer);
-                // render.draw_tilemap(shader_2d, &adventurer.sprite.ctx, &tilemap, [2]f32{0, 0}, [2]f32{64, 64});
+                // draw_entity_2d(shader_2d, &adventurer);
+                // draw_tilemap(shader_2d, &adventurer.sprite.ctx, &tilemap, [2]f32{0, 0}, [2]f32{64, 64});
                 draw_gui(&gui_ctx, shader_2d, text_shader, &gui_render_ctx, &font, gui_state.palette);
             }
             gl.Disable(gl.BLEND);
@@ -309,7 +306,7 @@ main :: proc()
         last_time = current_time;
         
         
-        asset.check_updates(&asset.global_catalog);
+        catalog_check_updates(&global_catalog);
     }
 }
 
