@@ -91,6 +91,19 @@ set_material :: proc(s: ^Shader, m: ^Material)
         set_uniform(s, "use_ao_tex", false);
     }
     
+    #partial switch v in m.luminance
+    {
+        case ^Texture:
+        gl.ActiveTexture(gl.TEXTURE5);
+        gl.BindTexture(gl.TEXTURE_2D, v.id);
+        set_uniform(s, "luminance_map", 5);
+        set_uniform(s, "use_luminance_tex", true);
+        
+        case f32:
+        set_uniform(s, "luminance_const", v);
+        set_uniform(s, "use_luminance_tex", false);
+    }
+    
     set_uniform(s, "shaded", m.shaded);
 }
 

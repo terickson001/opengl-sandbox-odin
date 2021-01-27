@@ -175,14 +175,14 @@ get :: proc(using c: ^Catalog, path: string) -> ^Asset
     return asset;
 }
 
-register :: proc{register_material};
+register :: proc{register_shader, register_mesh, register_texture, register_material};
 
 check_updates :: proc(using c: ^Catalog)
 {
     heimdall.poll_events(&watcher);
 }
 
-// Shader
+/***** SHADER *****/
 @private
 shader_test :: proc(data: []byte, _: string, ext: string) -> bool
 {
@@ -220,6 +220,20 @@ get_shader :: proc(using c: ^Catalog, path: string) -> ^render.Shader
     return &shader_asset.program;
 }
 
+register_shader :: proc(using c: ^Catalog, shader: render.Shader, name: string) -> ^render.Shader
+{
+    asset := new(Asset, c.allocator);
+    asset.variant = Shader{shader, nil};
+    
+    alloc_name := strings.clone(name, c.allocator);
+    assets[alloc_name] = asset;
+    
+    shader_asset := &asset.variant.(Shader);
+    
+    return &shader_asset.program;
+}
+
+/***** MESH *****/
 @private
 mesh_test :: proc(data: []byte, _: string, ext: string) -> bool
 {
@@ -263,6 +277,20 @@ get_mesh :: proc(using c: ^Catalog, path: string) -> ^render.Mesh
     return &mesh_asset.mesh;
 }
 
+register_mesh :: proc(using c: ^Catalog, mesh: render.Mesh, name: string) -> ^render.Mesh
+{
+    asset := new(Asset, c.allocator);
+    asset.variant = Mesh{mesh};
+    
+    alloc_name := strings.clone(name, c.allocator);
+    assets[alloc_name] = asset;
+    
+    mesh_asset := &asset.variant.(Mesh);
+    
+    return &mesh_asset.mesh;
+}
+
+/***** TEXTURE *****/
 @private
 texture_test :: proc(data: []byte, _: string, _: string) -> bool
 {
@@ -294,6 +322,20 @@ get_texture :: proc(using c: ^Catalog, path: string) -> ^render.Texture
     return &tex_asset.texture;
 }
 
+register_texture :: proc(using c: ^Catalog, texture: render.Texture, name: string) -> ^render.Texture
+{
+    asset := new(Asset, c.allocator);
+    asset.variant = Texture{texture};
+    
+    alloc_name := strings.clone(name, c.allocator);
+    assets[alloc_name] = asset;
+    
+    tex_asset := &asset.variant.(Texture);
+    
+    return &tex_asset.texture;
+}
+
+/***** MATERIAL *****/
 get_material :: proc(using c: ^Catalog, name: string) -> ^render.Material
 {
     asset := get(c, name);

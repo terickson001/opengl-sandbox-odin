@@ -30,20 +30,28 @@ Editor :: struct
     
     selected_entity: ^entity.Entity,
     
+    gizmo_mode: Gizmo_Mode,
     gizmo: Gizmo,
+}
+
+Gizmo_Mode :: enum u8
+{
+    Move, 
+    Rotate, 
+    Scale,
 }
 
 Gizmo :: struct
 {
     parent: ^entity.Entity,
-    mode: enum u8 {Move, Rotate, Scale},
     
     selected: ^entity.Entity,
     offset: f32,
-    start: [3]f32,
+    start_pos: [3]f32,
+    start_rot: quaternion128,
     
     shader: ^render.Shader,
-    entities: [dynamic]entity.Entity
+    entities: [dynamic]entity.Entity,
 }
 
 @static editor: Editor;
@@ -109,15 +117,17 @@ update_editor :: proc(win: render.Window, ctx: ^gui.Context, scn: ^scene.Scene)
         if !control.mouse_down(0)
         {
             gizmo.selected = nil;
-            gizmo.start = {};
+            gizmo.start_pos = {};
             break GIZMO;
         }
         
         // Reset Changes
-        if control.key_pressed(int(glfw.KEY_ESCAPE))
+        if control.mouse_pressed(1)
         {
             gizmo.selected = nil;
-            gizmo.parent.pos = gizmo.start;
+            gizmo.parent.pos = gizmo.start_pos;
+            gizmo.parent.rot = gizmo.start_rot;
+            break GIZMO;
         }
         
         // Manipulate
@@ -136,15 +146,36 @@ update_editor :: proc(win: render.Window, ctx: ^gui.Context, scn: ^scene.Scene)
                 case 'y': normal = {0, 0, 1};
                 case 'z': normal = {1, 0, 0};
             }
+            point := gizmo.parent.pos + DIRS[axis-'x']*gizmo.offset;
             ray := get_mouse_ray(win, scn.camera, scn.camera.view, scn.camera.projection);
-            diff := ray.origin - gizmo.parent.pos;
-            prod :=  linalg.dot(diff, normal);
-            prod2 := linalg.dot(ray.dir, normal);
-            prod3 := prod / prod2;
-            intersect := ray.origin - ray.dir*prod3;
+            plane := entity.Plane{point, normal};
+            t, ok := entity.cast_ray_plane(ray, plane);
+            if !ok do break;
             
+            intersect := ray.origin + ray.dir*t;
+            
+            delta := intersect - point;
+            gizmo.parent.pos += delta * DIRS[axis-'x'];
+            
+            case "rot":
+            normal := DIRS[axis-'x'];
+            rel_x := DIRS[(axis-'x'+1)%3];
+            ray := get_mouse_ray(win, scn.camera, scn.camera.view, scn.camera.projection);
+            
+            plane := entity.Plane{gizmo.parent.pos, normal};
+            t, ok := entity.cast_ray_plane(ray, plane);
+            if !ok do break;
+            intersect := ray.origin + ray.dir*t;
             delta := intersect - gizmo.parent.pos;
-            gizmo.parent.pos += delta * DIRS[axis-'x']; 
+            
+            v1 := [2]f32{1, 0};
+            v2 := [2]f32{delta[(axis-'x'+1)%3], delta[(axis-'x'+2)%3]};
+            v3 := [2]f32{-v2.y, v2.x};
+            v4 := [2]f32{linalg.dot(v1, v3), linalg.dot(v1, v2)};
+            
+            angle := math.atan2(v4.x, v4.y);
+            q := cast(quaternion128)linalg.quaternion_angle_axis(gizmo.offset - angle, cast(linalg.Vector3)DIRS[axis-'x']);
+            gizmo.parent.rot = q * gizmo.start_rot;
         }
     }
 }
@@ -180,10 +211,10 @@ select_entity :: proc(e: ^entity.Entity)
     }
     
     selected_entity = e;
+    gizmo.parent = selected_entity;
     if selected_entity != nil 
     {
         selected_entity.wireframe = true;
-        gizmo.parent = selected_entity;
     }
 }
 
@@ -207,6 +238,7 @@ get_mouse_ray :: proc(win: render.Window, cam: render.Camera, view, projection: 
         -1, 1
     };
     proj := projection;
+    
     using linalg;
     cameraspace := mul(matrix4_inverse(cast(Matrix4)proj), clipspace);
     cameraspace = {cameraspace.x, cameraspace.y, -1, 0};
@@ -238,13 +270,55 @@ scene_test_ray :: proc(scn: ^scene.Scene, ray: entity.Ray) -> ^entity.Entity
                 min_t = t;
                 min_entity = &e;
             }
-            // @todo(Tyler): Find intersection offset for proper alignment
         }
         
         if min_entity != nil
         {
             gizmo.selected = min_entity;
-            gizmo.start = min_entity.pos;
+            
+            part_name := gizmo.selected.name;
+            action := part_name[:3];
+            axis := part_name[4];
+            DIRS := [3][3]f32{{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
+            switch action
+            {
+                case "trn":
+                normal: [3]f32;
+                
+                switch axis
+                {
+                    case 'x': normal = {0, 0, 1};
+                    case 'y': normal = {0, 0, 1};
+                    case 'z': normal = {1, 0, 0};
+                }
+                plane := entity.Plane{gizmo.parent.pos, normal};
+                t, ok := entity.cast_ray_plane(ray, plane);
+                if !ok do break;
+                intersect := ray.origin + ray.dir*t;
+                
+                delta := intersect - gizmo.parent.pos;
+                gizmo.offset = delta[axis-'x'];
+                
+                case "rot":
+                normal := DIRS[axis-'x'];
+                rel_x := DIRS[(axis-'x'+1)%3];
+                
+                plane := entity.Plane{gizmo.parent.pos, normal};
+                t, ok := entity.cast_ray_plane(ray, plane);
+                if !ok do break;
+                intersect := ray.origin + ray.dir*t;
+                delta := intersect - gizmo.parent.pos;
+                
+                
+                v1 := [2]f32{1, 0};
+                v2 := [2]f32{delta[(axis-'x'+1)%3], delta[(axis-'x'+2)%3]};
+                v3 := [2]f32{-v2.y, v2.x};
+                v4 := [2]f32{linalg.dot(v1, v3), linalg.dot(v1, v2)};
+                angle := math.atan2(v4.x, v4.y);
+                gizmo.offset = angle;
+            }
+            gizmo.start_pos = gizmo.parent.pos;
+            gizmo.start_rot = gizmo.parent.rot;
             return gizmo.parent;
         }
     }
@@ -254,9 +328,11 @@ scene_test_ray :: proc(scn: ^scene.Scene, ray: entity.Ray) -> ^entity.Entity
         t, succ := entity.cast_ray_aabb(ray, entity.get_bounds(e));
         if !succ do continue;
         
+        if e.name == "wall_back" do fmt.printf("HIT AABB\n %v\n %v\n", e.bounds, entity.get_bounds(e));
         t, succ = entity.cast_ray_triangles(ray, e);
         if succ && t < min_t
         {
+            if e.name == "wall_back" do fmt.printf("HIT MESH\n");
             min_t = t;
             min_entity = &e;
         }
@@ -324,43 +400,46 @@ init_gizmo :: proc()
     INT  :: math.TAU / LOD;
     DIRS := [3][3]f32{{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
     
-    cone: ^render.Mesh;
+    cone:     ^render.Mesh;
     cylinder: ^render.Mesh;
+    ring:     ^render.Mesh;
     for dir, d in DIRS
     {
         rel_x := DIRS[(d+1)%3];
-        rel_z := DIRS[(d+2)%3];
+        rel_y := DIRS[(d+2)%3];
+        rel_z := DIRS[d];
         
         cone     = new(render.Mesh);
         cylinder = new(render.Mesh);
+        ring     = new(render.Mesh);
         cone.vertices     = make([][3]f32, LOD*3);
         cylinder.vertices = make([][3]f32, LOD*6);
-        
+        ring.vertices     = make([][3]f32, LOD*6 * LOD*5);
         
         for i in 0..<LOD
         {
             using math;
             // Translate Head
             cone.vertices[i*3+0] = rel_x * cos(INT*f32(i)) * R * 2
-                + rel_z * sin(INT*f32(i)) * R * 2
+                + rel_y * sin(INT*f32(i)) * R * 2
                 + dir * LEN * 0.8;
             
             cone.vertices[i*3+1] = rel_x * cos(INT*(f32(i)+1)) * R * 2
-                + rel_z * sin(INT*(f32(i)+1)) * R * 2
+                + rel_y * sin(INT*(f32(i)+1)) * R * 2
                 + dir * LEN * 0.8;
             
             cone.vertices[i*3+2] = dir * LEN;
             
             // Translate Stem
             c1 := rel_x * cos(INT*f32(i)) * R
-                + rel_z * sin(INT*f32(i)) * R;
+                + rel_y * sin(INT*f32(i)) * R;
             c2 := rel_x * cos(INT*f32(i)+1) * R
-                + rel_z * sin(INT*f32(i)+1) * R;
+                + rel_y * sin(INT*f32(i)+1) * R;
             c3 := rel_x * cos(INT*f32(i)+1) * R
-                + rel_z * sin(INT*f32(i)+1) * R
+                + rel_y * sin(INT*f32(i)+1) * R
                 + dir * LEN * 0.8;
             c4 := rel_x * cos(INT*f32(i)) * R
-                + rel_z * sin(INT*f32(i)) * R
+                + rel_y * sin(INT*f32(i)) * R
                 + dir * LEN * 0.8;
             cylinder.vertices[i*6+0] = c1;
             cylinder.vertices[i*6+1] = c2;
@@ -368,20 +447,78 @@ init_gizmo :: proc()
             cylinder.vertices[i*6+3] = c3;
             cylinder.vertices[i*6+4] = c4;
             cylinder.vertices[i*6+5] = c1;
+            
+            // Rotate Ring
+            R_INT :: INT / 5;
+            OR :: 1;
+            IR :: R/2;
+            for j in 0..<5
+            {
+                seg := i*5 + j;
+                a1 := R_INT*f32(seg);
+                a2 := R_INT*f32(seg+1);
+                ca1 := cos(a1); ca2 := cos(a2);
+                sa1 := sin(a1); sa2 := sin(a2);
+                for k in 0..<LOD
+                {
+                    b1 := INT*f32(k);
+                    b2 := INT*f32(k+1);
+                    cb1 := cos(b1); cb2 := cos(b2);
+                    sb1 := sin(b1); sb2 := sin(b2);
+                    c1 := point((OR + IR*cb1) * ca1,
+                                (OR + IR*cb1) * sa1,
+                                IR * sb1,
+                                rel_x, rel_y, rel_z
+                                );
+                    c2 := point((OR + IR*cb2) * ca1,
+                                (OR + IR*cb2) * sa1,
+                                IR * sb2,
+                                rel_x, rel_y, rel_z
+                                );
+                    c3 := point((OR + IR*cb1) * ca2,
+                                (OR + IR*cb1) * sa2,
+                                IR * sb1,
+                                rel_x, rel_y, rel_z
+                                );
+                    c4 := point((OR + IR*cb2) * ca2,
+                                (OR + IR*cb2) * sa2,
+                                IR * sb2,
+                                rel_x, rel_y, rel_z
+                                );
+                    
+                    ring.vertices[seg*LOD*6 + k*6 + 0] = c1;
+                    ring.vertices[seg*LOD*6 + k*6 + 1] = c2;
+                    ring.vertices[seg*LOD*6 + k*6 + 2] = c3;
+                    ring.vertices[seg*LOD*6 + k*6 + 3] = c4;
+                    ring.vertices[seg*LOD*6 + k*6 + 4] = c3;
+                    ring.vertices[seg*LOD*6 + k*6 + 5] = c2;
+                }
+            }
+            point :: proc(x, y, z: f32, dx, dy, dz: [3]f32) -> [3]f32
+            {
+                p := x * dx;
+                p += y * dy;
+                p += z * dz;
+                return p;
+            }
         }
-        
         
         material := asset.register(&asset.global_catalog, render.make_material(albedo = dir, shaded = false), fmt.aprintf("gizmo_color_%c", 'x'+d));
         
         cone.ctx = render.make_context(1, 0);
         cylinder.ctx = render.make_context(1, 0);
+        ring.ctx = render.make_context(1, 0);
         render.bind_context(&cone.ctx);
         render.update_vbo(&cone.ctx, 0, cone.vertices);
         render.bind_context(&cylinder.ctx);
         render.update_vbo(&cylinder.ctx, 0, cylinder.vertices);
+        render.bind_context(&ring.ctx);
+        render.update_vbo(&ring.ctx, 0, ring.vertices);
         append(&gizmo.entities, entity.make_entity(fmt.aprintf("trn_%c_head_gizmo", 'x'+d), cone, material));
         append(&gizmo.entities, entity.make_entity(fmt.aprintf("trn_%c_stem_gizmo", 'x'+d), cylinder, material));
+        append(&gizmo.entities, entity.make_entity(fmt.aprintf("rot_%c_stem_gizmo", 'x'+d), ring, material));
         
         gizmo.shader = asset.get_shader(&asset.global_catalog, "shader/3d.glsl");
     }
+    
 }

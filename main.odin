@@ -20,7 +20,6 @@ import "control"
 import "gui"
 import "util"
 import "asset"
-import "asset/model"
 import "edit"
 import "scene"
 import "entity"
@@ -28,10 +27,22 @@ import "entity"
 import "shared:compress/zlib"
 import "shared:profile"
 
-// @todo: Global Illumination
-// @todo: Shadow Mapping
+// @cleanup(Tyler): Unpackage _everything_, the structure of this project is terrible
+
+// @todo: Ambient Occlusion
+// @todo: Directional Lights
+// @todo: Image Based Lighting
 // @todo: Support new mesh formats
 // @todo: Animations
+
+POLL_INTERVAL :: 1000/60;
+glfw_poll :: proc()
+{
+    for {
+        glfw.poll_events();
+        time.sleep(POLL_INTERVAL);
+    }
+}
 
 main :: proc()
 {
@@ -65,7 +76,9 @@ main :: proc()
     glfw.set_cursor_pos(window.handle, f64(window.width/2), f64(window.height/2));
     glfw.poll_events();
     
-    // catalog := asset.make_catalog();
+    render.global_sampler_map = util.make_bitmap(2048);
+    for _ in 0..7 do render.aquire_sampler();
+    
     asset.global_catalog = asset.make_catalog();
     suzanne_mat := render.make_material(asset.get_texture(&asset.global_catalog, "res/rustediron2_basecolor.png"),
                                         asset.get_texture(&asset.global_catalog, "res/rustediron2_normal.png"),
@@ -84,10 +97,9 @@ main :: proc()
                                    asset.get_texture(&asset.global_catalog, "res/slso_brick_normal.png"),
                                    asset.get_texture(&asset.global_catalog, "res/slso_brick_specular.png"),
                                    );
-    // dds := render.load_texture("res/cube2.DDS");
     
     scn := scene.make_scene();
-    scene.add_entity(&scn, entity.make_entity("suzanne", suzanne_m, &suzanne_mat, {0, 0, 2}, {0, 0, -1}));
+    scene.add_entity(&scn, entity.make_entity("suzanne", suzanne_m, &suzanne_mat, {0, 0, 0}, {0, 0, -1}, {0.5, 0.5, 0.5}));
     scene.add_entity(&scn, entity.make_entity("wall_back",   &wall_mesh, &cobble, { 0,     0,    -4.5}, { 0,  0, -1}));
     scene.add_entity(&scn, entity.make_entity("wall_left",   &wall_mesh, &cobble, {-4.5,   0,     0},   { 1,  0,  0}));
     scene.add_entity(&scn, entity.make_entity("wall_right",  &wall_mesh, &cobble, { 4.5,   0,     0},   {-1,  0,  0}));
@@ -138,12 +150,31 @@ main :: proc()
                                                                       0.1, 100
                                                                       );
     
-    light := render.Light{};
-    light.pos = [3]f32{0, 0, 0};
-    // block_id := scene.add_entity(&scn, entity.make_entity("block", cube, &dds, light_pos-{0.5, 0.5, 0.5}, {0, 0, -1}));
-    light.color = [3]f32{0.8, 170.0/255, 94.0/255};
-    light_pow_base := f32(1.0);
-    render.init_shadowmap(&light, 2048);
+    render.init_depth_maps();
+    
+    /*
+        lights := [?]render.Light{
+            render.make_light({ 0,  0,  3}, {209.0/255,  75.0/255,  75.0/255}),
+            render.make_light({ 0,  0,  3}, { 94.0/255, 209.0/255,  75.0/255}),
+            render.make_light({ 0,  0,  3}, {75.0/255,  209.0/255, 202.0/255}),
+            render.make_light({ 0,  0,  3}, {84.0/255,   75.0/255, 209.0/255}),
+        };
+    */
+    
+    
+    lights := [?]render.Light{
+        render.make_light({ 0,  0,  3}, {1, 0, 0}),
+        render.make_light({ 0,  0,  3}, {0, 1, 0}),
+        render.make_light({ 0,  0,  3}, {0, 0, 1}),
+        render.make_light({ 0,  0,  3}, {1, 0, 0}),
+    };
+    
+    for light in &lights
+    {
+        render.add_light(&light);
+    }
+    light_pow_base := f32(3);
+    
     
     gui_ctx, gui_state := init_gui(window);
     gui_ctx.style.font = cast(rawptr)&font;
@@ -156,16 +187,22 @@ main :: proc()
     tilemap := render.load_tilemap("res/test.tilemap");
     render.init_variants(&tilemap, &tileset);
     
+    gl.UseProgram(shader.id);
+    render.set_uniform(shader, "exposure", 1.0);
+    
+    thread.run(glfw_poll);
+    
     mouse_ray: entity.Ray;
     updated: bool;
     for glfw.get_key(window.handle, glfw.KEY_ESCAPE) != glfw.PRESS &&
         !glfw.window_should_close(window.handle)
     {
         updated = false;
+        accum_time += f64(dt);
         for dt > time_step
         {
+            nb_frames += 1;
             updated = true;
-            
             if control.key_pressed('[')
             {
                 render.toggle_camera(window, &scn.camera);
@@ -175,7 +212,7 @@ main :: proc()
             
             update_gui_inputs(&gui_ctx, f64(time_step));
             gui.begin(&gui_ctx);
-            do_gui(&gui_state, &gui_ctx, window);
+            // do_gui(&gui_state, &gui_ctx, window);
             {
                 if control.key_pressed('E') 
                 {
@@ -193,33 +230,35 @@ main :: proc()
             adventurer.pos.y =  math.sin(f32(current_time)*4)*(h/8)+h/2;
             adventurer.pos.x =  math.cos(f32(current_time)*4)*-1*(w/8)+w/2;
             
-            light.pow = light_pow_base + math.sin(f32(current_time))*(light_pow_base);
-            /*
-                        light.pos.y =  math.sin(f32(current_time)*2)*4;
-                        light.pos.x =  math.cos(f32(current_time)*2)*4;
-                        light.pos.z =  math.cos((f32(current_time)*2))*4;
-            */
-            // scn.entities[block_id].pos = light_pos-{0.5, 0.5, 0.5};
+            for light, i in &lights
+            {
+                light.power = light_pow_base + math.sin(f32(current_time))*(light_pow_base/2);
+                
+                light.pos.x =  math.sin(f32(current_time)+math.PI/16*f32(i))*1;
+                light.pos.z =  math.cos(f32(current_time)+math.PI/16*f32(i))*1;
+            }
             dt -= time_step;
         }
         
-        // Only draw if content has been updated
-        nb_frames += 1;
-        accum_time += f64(dt);
         if accum_time >= 1.0
         {
             fps_str = fmt.bprintf(fps_buf[:], "%d", nb_frames);
             nb_frames = 0;
-            accum_time -= 1.0;
+            accum_time = 0;
         }
-        
+        updated = true;
+        // Only draw if content has been updated
         if updated
         {
-            
+            nb_frames += 1;
             scn.camera.view = render.get_camera_view(scn.camera);
             
-            render.setup_shadowmap(light, depth_shader);
-            scene.render(&scn, depth_shader);
+            render.start_point_depth_pass(depth_shader);
+            for light in lights
+            {
+                render.setup_light_pass(light, depth_shader);
+                scene.render(&scn, depth_shader);
+            }
             
             gl.BindFramebuffer(gl.FRAMEBUFFER, 0);
             gl.Viewport(0, 0, i32(window.width), i32(window.height));
@@ -228,16 +267,16 @@ main :: proc()
             render.set_uniform(shader, "V", scn.camera.view);
             render.set_uniform(shader, "P", scn.camera.projection);
             render.set_uniform(shader, "eye_position_m", scn.camera.pos);
-            render.set_uniform(shader, "light_position_m", light.pos);
-            render.set_uniform(shader, "light_color", light.color);
-            render.set_uniform(shader, "light_power", light.pow);
+            render.set_uniform(shader, "lights", lights);
             render.set_uniform(shader, "resolution", window.res);
-            gl.ActiveTexture(gl.TEXTURE5);
-            gl.BindTexture(gl.TEXTURE_CUBE_MAP, light.shadowmap.tex);
-            render.set_uniform(shader, "depth_map", 5);
-            render.set_uniform(shader, "light_extent", light.extent);
+            render.set_uniform(shader, "point_depth_maps", 6);
+            gl.ActiveTexture(gl.TEXTURE6);
+            gl.BindTexture(gl.TEXTURE_CUBE_MAP_ARRAY, render.point_depth_maps);
             
             scene.render(&scn, shader);
+            
+            gl.Clear(gl.DEPTH_BUFFER_BIT);
+            edit.draw_gizmo(shader);
             
             /* 2D */
             gl.UseProgram(shader_2d.id);
@@ -249,23 +288,18 @@ main :: proc()
                 gfnt.draw_string(&font, 24, {f32(window.width) - fps_w, 0}, 0, string(fps_str[:]));
             }
             
-            gl.Disable(gl.CULL_FACE);
+            gl.Enable(gl.CULL_FACE);
             gl.Enable(gl.BLEND);
-            gl.DepthMask(gl.FALSE);
-            gl.Disable(gl.DEPTH_TEST);
+            //gl.DepthMask(gl.FALSE);
+            //gl.Disable(gl.DEPTH_TEST);
             {
-                // render.draw_entity_2d(shader_2d, &adventurer);
+                // entity.draw_entity_2d(shader_2d, &adventurer);
                 // render.draw_tilemap(shader_2d, &adventurer.sprite.ctx, &tilemap, [2]f32{0, 0}, [2]f32{64, 64});
                 draw_gui(&gui_ctx, shader_2d, text_shader, &gui_render_ctx, &font, gui_state.palette);
             }
-            gl.Enable(gl.CULL_FACE);
             gl.Disable(gl.BLEND);
             gl.DepthMask(gl.TRUE);
             gl.Enable(gl.DEPTH_TEST);
-            
-            gl.UseProgram(shader.id);
-            gl.Clear(gl.DEPTH_BUFFER_BIT);
-            edit.draw_gizmo(shader);
             
             glfw.swap_buffers(window.handle);
         }
@@ -274,7 +308,7 @@ main :: proc()
         dt += f32(current_time - last_time);
         last_time = current_time;
         
-        glfw.poll_events();
+        
         asset.check_updates(&asset.global_catalog);
     }
 }
@@ -288,7 +322,7 @@ init_glfw :: proc()
     
     glfw.window_hint(glfw.SAMPLES, 4);
     glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 4);
-    glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 3);
+    glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 5);
     glfw.window_hint(glfw.OPENGL_FORWARD_COMPAT, gl.TRUE);
     glfw.window_hint(glfw.OPENGL_PROFILE, int(glfw.OPENGL_CORE_PROFILE));
     glfw.window_hint(glfw.DEPTH_BITS, 24);

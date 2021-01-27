@@ -38,6 +38,46 @@ get_mesh_bounds :: proc(mesh: ^render.Mesh) -> AABB
     return box;
 }
 
+transform_aabb :: proc(aabb: AABB, transform: [4][4]f32) -> AABB
+{
+    r, t, f, l, b, B: f32;
+    {
+        using aabb;
+        r = rtf.x;
+        t = rtf.y;
+        f = rtf.z;
+        l = lbb.x;
+        b = lbb.y;
+        B = lbb.z;
+    }
+    verts := [8][4]f32{
+        {l, t, f, 1},
+        {l, t, B, 1},
+        {r, t, B, 1},
+        {r, t, f, 1},
+        {l, b, f, 1},
+        {l, b, B, 1},
+        {r, b, B, 1},
+        {r, b, f, 1},
+    };
+    
+    ret: AABB;
+    for v in &verts
+    {
+        v = linalg.mul(transform, v);
+        using ret;
+        if      v.x < lbb.x do lbb.x = v.x;
+        else if v.x > rtf.x do rtf.x = v.x;
+        if      v.y < lbb.y do lbb.y = v.y;
+        else if v.y > rtf.y do rtf.y = v.y;
+        if      v.z < lbb.z do lbb.z = v.z;
+        else if v.z > rtf.z do rtf.z = v.z;
+    }
+    ret.lbb.w = 1.0;
+    ret.rtf.w = 1.0;
+    return ret;
+}
+
 cast_ray_aabb :: proc(ray: Ray, box: AABB) -> (t: f32, result: bool)
 {
     frac := 1/ray.dir;
@@ -60,7 +100,13 @@ cast_ray_aabb :: proc(ray: Ray, box: AABB) -> (t: f32, result: bool)
 
 cast_ray_plane :: proc(ray: Ray, plane: Plane) -> (t: f32, result: bool)
 {
-    return;
+    denom := linalg.dot(plane.normal, ray.dir);
+    if abs(denom) >= 0.0001
+    {
+        t := linalg.dot(plane.center - ray.origin, plane.normal) / denom;
+        if t >= 0 do return t, true;
+    }
+    return 0, false;
 }
 
 cast_ray_triangles :: proc(ray: Ray, using e: Entity) -> (t: f32, result: bool)

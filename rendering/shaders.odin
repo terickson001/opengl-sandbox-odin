@@ -6,9 +6,7 @@ import "core:os"
 import "core:strings"
 import "core:mem"
 import "core:intrinsics"
-import "core:runtime"
-import oparse "core:odin/parser"
-import oast "core:odin/ast"
+import rt "core:runtime"
 import "../util"
 
 Shader :: struct
@@ -24,60 +22,280 @@ Shader :: struct
     ubos     : map[string]u32,
 }
 
-set_uniform :: proc(using s: ^Shader, name: string, val: $T, loc := #caller_location)
+global_sampler_map: util.Bitmap;
+aquire_sampler :: proc() -> i32
 {
+    sampler, ok := util.bitmap_find_first(&global_sampler_map, true);
+    if !ok
+    {
+        fmt.eprintf("ERROR: Out of samplers\n");
+        os.exit(1);
+    }
+    util.bitmap_set(&global_sampler_map, sampler);
+    return i32(sampler);
+}
+
+release_sampler :: proc(sampler: ^i32)
+{
+    util.bitmap_clear(&global_sampler_map, u64(sampler^));
+    sampler^ = -1;
+}
+
+set_uniform_ti :: proc(using s: ^Shader, name: string, data: rawptr, ti: ^rt.Type_Info, loc := #caller_location)
+{
+    using rt;
+    ti := type_info_base(ti);
     location, found := s.uniforms[name];
     if !found
     {
-        // fmt.eprintf("%#v: ERROR: Shader does not have uniform %q\n", loc, name);
-        // os.exit(1);
-        return;
+        #partial switch v in ti.variant
+        {
+            case Type_Info_Struct: break;
+            case Type_Info_Slice:  break;
+            case Type_Info_Array:  break;
+            case: return;
+        }
     }
     
-    E :: intrinsics.type_elem_type(T);
-    N :: size_of(T) / size_of(E);
-    when intrinsics.type_is_integer(E) || intrinsics.type_is_boolean(E) || intrinsics.type_is_enum(E)
+    #partial switch v in ti.variant
     {
-        when intrinsics.type_is_unsigned(E)
+        case Type_Info_Integer:
+        if v.signed do gl.Uniform1i(location, cast(i32)to32(ti.size, data));
+        else        do gl.Uniform1ui(location, to32(ti.size, data));
+        
+        case Type_Info_Enum:
+        set_uniform_ti(s, name, data, v.base, loc);
+        
+        case Type_Info_Boolean:
+        gl.Uniform1ui(location, to32(ti.size, data));
+        
+        case Type_Info_Float:
+        gl.Uniform1f(location, (cast(^f32)data)^);
+        
+        case Type_Info_Array: // Vector
+        e := type_info_base(v.elem);
+        #partial switch ev in e.variant
         {
-            when      N == 1 do gl.Uniform1ui(location, u32(val));
-            else when N == 2 do gl.Uniform2ui(location, u32(val[0]), u32(val[1]));
-            else when N == 3 do gl.Uniform3ui(location, u32(val[0]), u32(val[1]), u32(val[2]));
-            else when N == 4 do gl.Uniform4ui(location, u32(val[0]), u32(val[1]), u32(val[2]), u32(val[3]));
-        }
-        else
-        {
-            when      N == 1 do gl.Uniform1i(location, i32(val));
-            else when N == 2 do gl.Uniform2i(location, i32(val[0]), i32(val[1]));
-            else when N == 3 do gl.Uniform3i(location, i32(val[0]), i32(val[1]), i32(val[2]));
-            else when N == 4 do gl.Uniform4i(location, i32(val[0]), i32(val[1]), i32(val[2]), i32(val[3]));
-        }
-    }
-    else when intrinsics.type_is_float(E)
-    {
-        when      N == 1 do gl.Uniform1f(location, f32(val));
-        else when N == 2 do gl.Uniform2f(location, f32(val[0]), f32(val[1]));
-        else when N == 3 do gl.Uniform3f(location, f32(val[0]), f32(val[1]), f32(val[2]));
-        else when N == 4 do gl.Uniform4f(location, f32(val[0]), f32(val[1]), f32(val[2]), f32(val[3]));
-    }
-    else when intrinsics.type_is_array(E)
-    {
-        S :: intrinsics.type_elem_type(E);
-        when intrinsics.type_is_array(S) // Array of Matrices
-        {
+            case Type_Info_Float:
+            if !found do return;
+            val := mem.slice_ptr(cast(^f32)data, v.count);
+            if      v.count == 1 do gl.Uniform1f(location, val[0]);
+            else if v.count == 2 do gl.Uniform2f(location, val[0], val[1]);
+            else if v.count == 3 do gl.Uniform3f(location, val[0], val[1], val[2]);
+            else if v.count == 4 do gl.Uniform4f(location, val[0], val[1], val[2], val[3]);
             
-            M :: size_of(E) / size_of(S); // Matrix Dims
-            when      M == 2 { temp := val; gl.UniformMatrix2fv(location, N, gl.FALSE, &temp[0][0][0]); }
-            else when M == 3 { temp := val; gl.UniformMatrix3fv(location, N, gl.FALSE, &temp[0][0][0]); }
-            else when M == 4 { temp := val; gl.UniformMatrix4fv(location, N, gl.FALSE, &temp[0][0][0]); }
+            case Type_Info_Integer:
+            if !found do return;
+            if ev.signed
+            {
+                if      v.count == 1 do gl.Uniform1i(location, cast(i32)to32(e.size, data, 0));
+                else if v.count == 2 do gl.Uniform2i(location, cast(i32)to32(e.size, data, 0), cast(i32)to32(e.size, data, 1));
+                else if v.count == 3 do gl.Uniform3i(location, cast(i32)to32(e.size, data, 0), cast(i32)to32(e.size, data, 1), cast(i32)to32(e.size, data, 2));
+                else if v.count == 4 do gl.Uniform4i(location, cast(i32)to32(e.size, data, 0), cast(i32)to32(e.size, data, 1), cast(i32)to32(e.size, data, 2), cast(i32)to32(e.size, data, 3));
+            }
+            else
+            {
+                if      v.count == 1 do gl.Uniform1ui(location, to32(e.size, data, 0));
+                else if v.count == 2 do gl.Uniform2ui(location, to32(e.size, data, 0), to32(e.size, data, 1));
+                else if v.count == 3 do gl.Uniform3ui(location, to32(e.size, data, 0), to32(e.size, data, 1), to32(e.size, data, 2));
+                else if v.count == 4 do gl.Uniform4ui(location, to32(e.size, data, 0), to32(e.size, data, 1), to32(e.size, data, 2), to32(e.size, data, 3));
+            }
+            
+            case Type_Info_Struct:
+            count_location, count_found := s.uniforms[fmt.tprintf("%s_n", name)];
+            if count_found do gl.Uniform1i(count_location, i32(v.count));
+            for i in 0..<(v.count)
+            {
+                set_uniform_struct_ti(s, fmt.tprintf("%s[%d]", name, i), rawptr(uintptr(data)+uintptr(v.elem_size*i)), e, loc);
+            }
+            
+            case Type_Info_Array: // Matrix
+            
+            ee := type_info_base(ev.elem);
+            #partial switch eev in ee.variant
+            {
+                case Type_Info_Float:
+                if !found do return;
+                if      ev.count == 2 do gl.UniformMatrix2fv(location, 1, gl.FALSE, cast(^f32)data);
+                else if ev.count == 3 do gl.UniformMatrix3fv(location, 1, gl.FALSE, cast(^f32)data);
+                else if ev.count == 4 do gl.UniformMatrix4fv(location, 1, gl.FALSE, cast(^f32)data);
+                
+                case Type_Info_Array: // Array of Matrices
+                location, found = s.uniforms[fmt.tprintf("%s[0]", name)];
+                if !found do return;
+                eee := type_info_base(eev.elem);
+                #partial switch eeev in eee.variant
+                {
+                    case Type_Info_Float:
+                    n := i32(v.count);
+                    if      eev.count == 2 do gl.UniformMatrix2fv(location, n, gl.FALSE, cast(^f32)data);
+                    else if eev.count == 3 do gl.UniformMatrix3fv(location, n, gl.FALSE, cast(^f32)data);
+                    else if eev.count == 4 do gl.UniformMatrix4fv(location, n, gl.FALSE, cast(^f32)data);
+                }
+            }
+            
         }
-        else
+        
+        case Type_Info_Slice:
+        slice := cast(^mem.Raw_Slice)data;
+        location, found = s.uniforms[fmt.tprintf("%s[0]", name)];
+        count_location, count_found := s.uniforms[fmt.tprintf("%s_n", name)];
+        if count_found do gl.Uniform1i(count_location, i32(slice.len));
+        e := type_info_base(v.elem);
+        #partial switch ev in e.variant
         {
-            when      N == 2 { temp := val; gl.UniformMatrix2fv(location, 1, gl.FALSE, &temp[0][0]); }
-            else when N == 3 { temp := val; gl.UniformMatrix3fv(location, 1, gl.FALSE, &temp[0][0]); }
-            else when N == 4 { temp := val; gl.UniformMatrix4fv(location, 1, gl.FALSE, &temp[0][0]); }
+            case Type_Info_Integer:
+            if !found do return;
+            if ev.signed do gl.Uniform1iv(location, i32(slice.len), cast(^i32)slice.data);
+            else         do gl.Uniform1uiv(location, i32(slice.len), cast(^u32)slice.data);
+            
+            case Type_Info_Float:
+            if !found do return;
+            gl.Uniform1fv(location, i32(slice.len), cast(^f32)slice.data);
+            
+            case Type_Info_Struct:
+            for i in 0..<(slice.len)
+            {
+                set_uniform_struct_ti(s, fmt.tprintf("%s[%d]", name, i), rawptr(uintptr(data)+uintptr(v.elem_size)), e, loc);
+            }
         }
+        
+        case Type_Info_Struct:
+        set_uniform_struct_ti(s, name, data, ti, loc);
     }
+    
+    to32 :: proc(size: int, data: rawptr, idx := 0) -> u32
+    {
+        data := uintptr(data)+uintptr(idx*size);
+        switch size
+        {
+            case 1: return u32((cast(^u8)data)^);
+            case 2: return u32((cast(^u16)data)^);
+            case 4: return (cast(^u32)data)^;
+            case 8: return u32((cast(^u64)data)^);
+        }
+        return 0;
+    }
+}
+
+set_uniform_struct_ti :: proc(using s: ^Shader, name: string, data: rawptr, ti: ^rt.Type_Info, loc := #caller_location)
+{
+    using rt;
+    
+    st := type_info_base(ti).variant.(Type_Info_Struct);
+    for field, i in st.names
+    {
+        if strings.contains(st.tags[i], "glsl_exclude") do continue;
+        set_uniform_ti(s, fmt.tprintf("%s.%s", name, field), rawptr(uintptr(data) + st.offsets[i]), st.types[i]);
+    }
+}
+
+set_uniform :: proc(using s: ^Shader, name: string, val: $T, loc := #caller_location)
+{
+    temp := val;
+    set_uniform_ti(s, name, &temp, rt.type_info_base(type_info_of(T)), loc);
+    return; 
+    
+    /*
+        location, found := s.uniforms[name];
+        if !found && !intrinsics.type_is_struct(T)
+        {
+            // fmt.eprintf("%#v: ERROR: Shader does not have uniform %q\n", loc, name);
+            // os.exit(1);
+            return;
+        }
+        
+        E :: intrinsics.type_elem_type(T);
+        N :: size_of(T) / size_of(E);
+        when intrinsics.type_is_struct(T)
+        {
+            ti := rt.type_info_base(type_info_of(T));
+            temp := val;
+            set_uniform_struct_ti(s, name, &temp, ti, loc);
+        }
+        else when intrinsics.type_is_slice(T)
+        {
+            n := len(val);
+            count_location, count_found := s.uniforms[fmt.tprintf("%s_n", name)];
+            if count_found do gl.Uniform1iv(count_location, i32(n));
+            
+            when intrinsics.type_is_integer(E) || intrinsics.type_is_boolean(E) || intrinsics.type_is_enum(E)
+            {
+                when intrinsics.type_is_unsigned(E)
+                {
+                    gl.Uniform1uiv(location, n, cast(^u32)&val[0]);
+                }
+                else
+                {
+                    gl.Uniform1iv(location, n, cast(^i32)&val[0]);
+                }
+            }
+            else when intrinsics.type_is_float(E)
+            {
+                gl.Uniform1fv(location, n, cast(^f32)&val[0]);
+            }
+            else when intrinsics.type_is_array(E) // Slice of Vectors
+            {
+                S :: intrinsics.type_elem_type(E);
+                M :: size_of(E) / size_of(S); // Vector/Matrix Dims
+                
+                when intrinsics.type_is_array(S) // Slice of Matrices
+                {
+                    when      M == 2 { temp := val; gl.UniformMatrix2fv(location, n, gl.FALSE, &temp[0][0][0]); }
+                    else when M == 3 { temp := val; gl.UniformMatrix3fv(location, n, gl.FALSE, &temp[0][0][0]); }
+                    else when M == 4 { temp := val; gl.UniformMatrix4fv(location, n, gl.FALSE, &temp[0][0][0]); }
+                }
+                else
+                {
+                    when      M == 2 { temp := val; gl.Uniform2fv(location, n, gl.FALSE, &temp[0][0]); }
+                    else when M == 3 { temp := val; gl.Uniform3fv(location, n, gl.FALSE, &temp[0][0]); }
+                    else when M == 4 { temp := val; gl.Uniform4fv(location, n, gl.FALSE, &temp[0][0]); }
+                }
+            }
+        }
+        else when intrinsics.type_is_integer(E) || intrinsics.type_is_boolean(E) || intrinsics.type_is_enum(E)
+        {
+            when intrinsics.type_is_unsigned(E)
+            {
+                when      N == 1 do gl.Uniform1ui(location, u32(val));
+                else when N == 2 do gl.Uniform2ui(location, u32(val[0]), u32(val[1]));
+                else when N == 3 do gl.Uniform3ui(location, u32(val[0]), u32(val[1]), u32(val[2]));
+                else when N == 4 do gl.Uniform4ui(location, u32(val[0]), u32(val[1]), u32(val[2]), u32(val[3]));
+            }
+            else
+            {
+                when      N == 1 do gl.Uniform1i(location, i32(val));
+                else when N == 2 do gl.Uniform2i(location, i32(val[0]), i32(val[1]));
+                else when N == 3 do gl.Uniform3i(location, i32(val[0]), i32(val[1]), i32(val[2]));
+                else when N == 4 do gl.Uniform4i(location, i32(val[0]), i32(val[1]), i32(val[2]), i32(val[3]));
+            }
+        }
+        else when intrinsics.type_is_float(E)
+        {
+            when      N == 1 do gl.Uniform1f(location, f32(val));
+            else when N == 2 do gl.Uniform2f(location, f32(val[0]), f32(val[1]));
+            else when N == 3 do gl.Uniform3f(location, f32(val[0]), f32(val[1]), f32(val[2]));
+            else when N == 4 do gl.Uniform4f(location, f32(val[0]), f32(val[1]), f32(val[2]), f32(val[3]));
+        }
+        else when intrinsics.type_is_array(E) // Matrix
+        {
+            S :: intrinsics.type_elem_type(E);
+            when intrinsics.type_is_array(S) // Array of Matrices
+            {
+                
+                M :: size_of(E) / size_of(S); // Matrix Dims
+                when      M == 2 { temp := val; gl.UniformMatrix2fv(location, N, gl.FALSE, &temp[0][0][0]); }
+                else when M == 3 { temp := val; gl.UniformMatrix3fv(location, N, gl.FALSE, &temp[0][0][0]); }
+                else when M == 4 { temp := val; gl.UniformMatrix4fv(location, N, gl.FALSE, &temp[0][0][0]); }
+            }
+            else
+            {
+                when      N == 2 { temp := val; gl.UniformMatrix2fv(location, 1, gl.FALSE, &temp[0][0]); }
+                else when N == 3 { temp := val; gl.UniformMatrix3fv(location, 1, gl.FALSE, &temp[0][0]); }
+                else when N == 4 { temp := val; gl.UniformMatrix4fv(location, 1, gl.FALSE, &temp[0][0]); }
+            }
+        }
+    */
 }
 
 set_uniform_block :: proc(using s: ^Shader, name: string, val: $T, loc := #caller_location)
@@ -430,6 +648,7 @@ load_shader_from_mem :: proc(code: []byte, filepath := string{}) -> Shader
         name := strings.clone(string(cstr[:strlen]));
         shader.uniforms[name] = loc;
     }
+    fmt.println("UNIFORMS:", shader.uniforms);
     
     if filepath != "" 
     {

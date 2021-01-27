@@ -1,4 +1,4 @@
-@version 430 core
+@version 450 core
 
 @vertex
 
@@ -7,11 +7,6 @@ layout(location = 1) in vec2 vertex_uv;
 layout(location = 2) in vec3 vertex_normal;
 layout(location = 3) in vec3 vertex_tangent;
 layout(location = 4) in vec3 vertex_bitangent;
-
-layout(location = 5) in mat4 M;
-// layout (location = 6) in use ...
-// layout (location = 7) in use ...
-// layout (location = 8) in use ...
 
 @out vert
 {
@@ -29,6 +24,7 @@ layout(location = 5) in mat4 M;
     vec3 light_direction_tbn;
 };
 
+uniform mat4 M;
 uniform mat4 V;
 uniform mat4 P;
 
@@ -161,29 +157,58 @@ uniform sampler2D luminance_map;
 uniform vec3 luminance_const;
 uniform bool use_luminance_tex;
 
-uniform vec3 light_color;
-uniform float light_power;
-uniform vec3 light_position_m;
+struct Light
+{
+    vec3 pos;
+    vec3 color;
+    float power;
+    float extent;
+    int depth_index;
+};
+
+uniform Light lights[16];
+uniform int lights_n;
+uniform samplerCubeArray point_depth_maps;
+
+uniform Light light;
 uniform vec3 eye_position_m;
 uniform bool wireframe;
 
-uniform float light_extent;
-uniform samplerCube depth_map;
+uniform float exposure;
 
-float calculate_shadow(vec3 frag_pos)
-{
-    vec3 frag_to_light = frag_pos - light_position_m;
-    float closest_depth = texture(depth_map, frag_to_light).r;
-    closest_depth *= light_extent;
-    float frag_depth = length(frag_to_light);
-    
-    float epsilon = 0.05;
-    float shadow = frag_depth - epsilon > closest_depth ? 1.0 : 0.0;
-    //color = vec3(closest_depth/light_extent);
-    return shadow;
-}
+vec3 sample_offsets[20] = vec3[]
+(
+ vec3( 1,  1,  1), vec3( 1, -1,  1), vec3(-1, -1,  1), vec3(-1,  1,  1), 
+ vec3( 1,  1, -1), vec3( 1, -1, -1), vec3(-1, -1, -1), vec3(-1,  1, -1),
+ vec3( 1,  1,  0), vec3( 1, -1,  0), vec3(-1, -1,  0), vec3(-1,  1,  0),
+ vec3( 1,  0,  1), vec3(-1,  0,  1), vec3( 1,  0, -1), vec3(-1,  0, -1),
+ vec3( 0,  1,  1), vec3( 0, -1,  1), vec3( 0, -1, -1), vec3( 0,  1, -1)
+ );
 
 const float PI = 3.14159265359;
+
+float calculate_shadow(vec3 frag_pos, in Light light)
+{
+    float epsilon = 0.05;
+    int samples = 20;
+    
+    float view_dist = length(eye_position_m - frag_pos);
+    vec3 frag_to_light = frag_pos - light.pos;
+    
+    // @todo(Tyler): Better Sample Selection
+    float radius = (1.0 + (view_dist / light.extent)) / 25.0;
+    float shadow = 0.0;
+    for (int i = 0; i < samples; i++)
+    {
+        float closest_depth = texture(point_depth_maps, vec4(frag_to_light + sample_offsets[i] * radius, light.depth_index)).r;
+        closest_depth *= light.extent;
+        float frag_depth = length(frag_to_light);
+        
+        shadow += frag_depth - epsilon > closest_depth ? 1.0 : 0.0;
+    }
+    
+    return shadow / float(samples);
+}
 
 struct Material
 {
@@ -262,7 +287,7 @@ vec3 reflectance(Material m, vec3 light_col, vec3 light_pos)
 {
     vec3 N = m.normal;
     vec3 L = normalize(light_pos - frag.position_m);
-    vec3 V = normalize(eye_position_m);
+    vec3 V = normalize(eye_position_m - frag.position_m);
     vec3 H = normalize(V + L);
     float cos_theta = max(dot(N, L), 0.0);
     
@@ -283,7 +308,6 @@ vec3 reflectance(Material m, vec3 light_col, vec3 light_pos)
     vec3 kD = vec3(1.0) - kS;
     
     kD = mix(kD, vec3(0), m.metalness);
-    //kD = kD * m.metalness;
     
     float NdotL = max(dot(N, L), 0.0);
     
@@ -299,23 +323,38 @@ void main()
     Material material = get_material();
     if (shaded)
     {
-        vec3 Lo = reflectance(material, light_color*light_power*10, light_position_m);
         
-        // Ambient Lighting
+        /*
+                vec3 Lo = reflectance(material, light.color*light.power*10, light.pos);
+                
+                // Ambient Lighting
+                
+                vec3 ambient = vec3(0.01) * material.albedo * material.ao;
+                float shadow = calculate_shadow(frag.position_m, light);
+                color = ambient + (1.0 - shadow) * Lo;
+                
+                // Ambient Lighting
+        */
+        
+        
         
         vec3 ambient = vec3(0.01) * material.albedo * material.ao;
-        float shadow = calculate_shadow(frag.position_m);
-        // shadow = 0.0;
-        color = ambient + (1.0 - shadow) * Lo;
+        color = ambient;
+        for (int i = 0; i < lights_n; i++)
+        {
+            vec3 Lo = reflectance(material, lights[i].color*lights[i].power*10, lights[i].pos);
+            
+            float shadow = calculate_shadow(frag.position_m, lights[i]);
+            // shadow = 0.0;
+            color += (1.0 - shadow) * Lo;
+        }
+        
+        
     }
     else
     {
         color = material.albedo;
     }
-    
-    vec3 frag_to_light = frag.position_m - light_position_m;
-    float closest_depth = texture(depth_map, frag_to_light).r;
-    
     
     float nearD = min(min(edge_dist.x, edge_dist.y), edge_dist.z);
     float edge_intensity = exp2(-1.0*nearD*nearD);
@@ -324,8 +363,10 @@ void main()
     if (wireframe)
         color = mix(color, edge_color, edge_intensity*edge_thickness);
     
+    float exposure = 1.0;
     // HDR tonemapping
-    color = color / (color + vec3(1.0));
+    // color = color / (color + vec3(1.0));
+    color = vec3(1.0) - exp(-color * exposure);
     // Gamma Correction
     color = pow(color, vec3(1.0/2.2));
 }

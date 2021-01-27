@@ -27,7 +27,6 @@ scene_add_entity :: proc(scene: ^Scene, entity: entity.Entity)
     {
         base := entity;
         base.pos = {0, 0, 0};
-        base.dir = {0, 0, -1};
         base.scale = {1, 1, 1};
         scene.base_entities[entity.name] = entity;
     }

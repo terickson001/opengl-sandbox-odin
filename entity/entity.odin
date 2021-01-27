@@ -21,8 +21,8 @@ Entity :: struct
     // tex   : ^render.Texture "noinspect",
     material: ^render.Material,
     pos   : [3]f32,
-    dir   : [3]f32 ,
-    scale : [3]f32 "link",
+    rot   : quaternion128,
+    scale : [3]f32,
     
     wireframe: bool "noinspect",
     bounds: AABB "noinspect",
@@ -39,11 +39,26 @@ Entity_2D :: struct
 
 make_entity :: proc(name: string, m: ^render.Mesh, mat: ^render.Material, pos: [3]f32 = {0, 0, 0}, dir: [3]f32 = {0, 0, 1}, scale: [3]f32 = {1, 1, 1}) -> (e: Entity)
 {
+    // @hack(Tyler): Compiler bug workaround (Issue #831)
+    {
+        q := quaternion128{};
+        hack := q == quaternion128{};
+    }
     e.name = name;
     e.mesh = m;
     e.material = mat;
     e.pos = pos;
-    e.dir = linalg.normalize(dir);
+    {
+        right := linalg.cross(dir, [3]f32{0, 1, 0});
+        if right == {0, 0, 0} do right = linalg.cross(dir, [3]f32{0, 0, 1});
+        up := linalg.cross(right, dir);
+        
+        e.rot = cast(quaternion128)linalg.quaternion_look_at(
+                                                             cast(linalg.Vector3)(pos),
+                                                             cast(linalg.Vector3)(pos+dir),
+                                                             cast(linalg.Vector3)(up)
+                                                             );
+    }
     e.bounds = get_mesh_bounds(m);
     e.scale = scale;
     return;
@@ -51,24 +66,12 @@ make_entity :: proc(name: string, m: ^render.Mesh, mat: ^render.Material, pos: [
 
 entity_transform :: proc(using e: Entity) -> [4][4]f32
 {
+    using linalg;
+    translate := matrix4_translate(cast(Vector3)pos);
+    rotate    := matrix4_from_quaternion(cast(Quaternion)rot);
+    scale_mat := matrix4_scale(cast(Vector3)scale);
     
-    translate := linalg.matrix4_translate(cast(linalg.Vector3)pos);
-    
-    rotate := linalg.MATRIX4_IDENTITY;
-    {
-        right := linalg.cross(dir, [3]f32{0, 1, 0});
-        if right == {0, 0, 0} do right = linalg.cross(dir, [3]f32{0, 0, 1});
-        up := linalg.cross(right, dir);
-        quat := linalg.quaternion_look_at(
-                                          cast(linalg.Vector3)(pos),
-                                          cast(linalg.Vector3)(pos+dir),
-                                          cast(linalg.Vector3)(up)
-                                          );
-        rotate = linalg.matrix4_from_quaternion(quat);
-    }
-    
-    scale_mat := linalg.matrix4_scale(cast(linalg.Vector3)scale);
-    transform := linalg.mul(translate, linalg.mul(rotate, scale_mat));
+    transform := mul(translate, mul(rotate, scale_mat));
     return cast([4][4]f32)transform;
 }
 
@@ -76,10 +79,6 @@ draw_entity :: proc(s: ^render.Shader, using e: Entity)
 {
     M := entity_transform(e);
     
-    gl.VertexAttrib4fv(5, &M[0][0]);
-    gl.VertexAttrib4fv(6, &M[1][0]);
-    gl.VertexAttrib4fv(7, &M[2][0]);
-    gl.VertexAttrib4fv(8, &M[3][0]);
     render.set_uniform(s, "M", M);
     
     render.set_uniform(s, "wireframe", e.wireframe);
@@ -91,12 +90,7 @@ draw_entity :: proc(s: ^render.Shader, using e: Entity)
 get_bounds :: proc(using e: Entity) -> AABB
 {
     M := entity_transform(e);
-    
-    using linalg;
-    world_bounds := bounds;
-    world_bounds.lbb = mul(M, world_bounds.lbb);
-    world_bounds.rtf = mul(M, world_bounds.rtf);
-    return world_bounds;
+    return transform_aabb(bounds, M);
 }
 
 make_entity_2d :: proc(s: ^render.Sprite, pos, scale: [2]f32) -> (e: Entity_2D)
