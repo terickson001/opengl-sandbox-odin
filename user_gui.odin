@@ -175,7 +175,6 @@ draw_rect :: proc(s: ^core.Shader, ctx: ^core.Render_Context, rect: gui.Rect, la
     
     gl.UseProgram(s.id);
     
-    
     core.bind_render_context(ctx);
     core.update_vbo(ctx, 0, vertices[:]);
     core.update_vbo(ctx, 1, uvs[:]);

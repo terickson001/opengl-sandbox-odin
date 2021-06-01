@@ -120,9 +120,9 @@ cast_ray_triangles :: proc(ray: Ray, using e: Entity) -> (t: f32, result: bool)
             b := mesh.vertices[mesh.indices[i*3+1]];
             c := mesh.vertices[mesh.indices[i*3+2]];
             
-            aw := swizzle(mul(cast(Matrix4)transform, [4]f32{a.x, a.y, a.z, 1}), 0, 1, 2);
-            bw := swizzle(mul(cast(Matrix4)transform, [4]f32{b.x, b.y, b.z, 1}), 0, 1, 2);
-            cw := swizzle(mul(cast(Matrix4)transform, [4]f32{c.x, c.y, c.z, 1}), 0, 1, 2);
+            aw := nvec(3, mul(cast(Matrix4f32)transform, [4]f32{a.x, a.y, a.z, 1}));
+            bw := nvec(3, mul(cast(Matrix4f32)transform, [4]f32{b.x, b.y, b.z, 1}));
+            cw := nvec(3, mul(cast(Matrix4f32)transform, [4]f32{c.x, c.y, c.z, 1}));
             
             t, succ := test_triangle(ray, aw, bw, cw);
             if succ do return t, succ;
@@ -135,9 +135,9 @@ cast_ray_triangles :: proc(ray: Ray, using e: Entity) -> (t: f32, result: bool)
             a := mesh.vertices[i*3+0];
             b := mesh.vertices[i*3+1];
             c := mesh.vertices[i*3+2];
-            aw := swizzle(mul(cast(Matrix4)transform, [4]f32{a.x, a.y, a.z, 1}), 0, 1, 2);
-            bw := swizzle(mul(cast(Matrix4)transform, [4]f32{b.x, b.y, b.z, 1}), 0, 1, 2);
-            cw := swizzle(mul(cast(Matrix4)transform, [4]f32{c.x, c.y, c.z, 1}), 0, 1, 2);
+            aw := nvec(3, mul(cast(Matrix4f32)transform, [4]f32{a.x, a.y, a.z, 1}));
+            bw := nvec(3, mul(cast(Matrix4f32)transform, [4]f32{b.x, b.y, b.z, 1}));
+            cw := nvec(3, mul(cast(Matrix4f32)transform, [4]f32{c.x, c.y, c.z, 1}));
             t, succ := test_triangle(ray, aw, bw, cw);
             if succ do return t, succ;
         }

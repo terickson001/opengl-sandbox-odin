@@ -86,7 +86,6 @@ update_editor :: proc(win: Window, ctx: ^gui.Context, scn: ^Scene)
     
     if .Active in gui.window(ctx, &settings_window, {})
     {
-        
         display_entity_data(ctx, selected_entity);
         gui.window_end(ctx);
     }
@@ -170,7 +169,7 @@ update_editor :: proc(win: Window, ctx: ^gui.Context, scn: ^Scene)
             v4 := [2]f32{linalg.dot(v1, v3), linalg.dot(v1, v2)};
             
             angle := math.atan2(v4.x, v4.y);
-            q := cast(quaternion128)linalg.quaternion_angle_axis(gizmo.offset - angle, cast(linalg.Vector3)DIRS[axis-'x']);
+            q := cast(quaternion128)linalg.quaternion_angle_axis(gizmo.offset - angle, cast(linalg.Vector3f32)DIRS[axis-'x']);
             gizmo.parent.rot = q * gizmo.start_rot;
         }
     }
@@ -236,13 +235,13 @@ get_mouse_ray :: proc(win: Window, cam: Camera, view, projection: [4][4]f32) -> 
     proj := projection;
     
     using linalg;
-    cameraspace := mul(matrix4_inverse(cast(Matrix4)proj), clipspace);
+    cameraspace := mul(matrix4_inverse(cast(Matrix4f32)proj), clipspace);
     cameraspace = {cameraspace.x, cameraspace.y, -1, 0};
-    worldspace := mul(matrix4_inverse(cast(Matrix4)view), cameraspace);
+    worldspace := mul(matrix4_inverse(cast(Matrix4f32)view), cameraspace);
     
     ray: Ray;
     ray.origin = cam.pos;
-    ray.dir = normalize(swizzle(worldspace, 0, 1, 2));
+    ray.dir = normalize(nvec(3, worldspace));
     
     return ray;
 }

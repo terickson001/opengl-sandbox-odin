@@ -23,7 +23,7 @@ make_catalog :: proc(root: string = "./", allocator := context.allocator) -> (c:
 {
     c.root = root;
     c.allocator = allocator;
-    c.assets = make(T=map[string]^Asset, allocator=allocator);
+    c.assets = make(map[string]^Asset, 16, allocator);
     c.watcher = heimdall.init_watcher(allocator);
     
     return c;

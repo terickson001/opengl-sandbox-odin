@@ -15,7 +15,7 @@ Scene :: struct
 make_scene :: proc(allocator := context.allocator) -> Scene
 {
     scene: Scene;
-    scene.base_entities = make(T=map[string]Entity, allocator=allocator);
+    scene.base_entities = make(map[string]Entity, 16, allocator);
     scene.entities = make([dynamic]Entity, allocator);
     return scene;
 }
@@ -60,7 +60,7 @@ world_to_clip :: proc(scene: ^Scene, worldspace: [3]f32) -> [3]f32
 clip_to_world :: proc(scene: ^Scene, clipspace: [3]f32) -> [3]f32
 {
     using linalg;
-    cameraspace := mul(matrix4_inverse(cast(Matrix4)scene.camera.projection), nvec(4, clipspace));
-    worldspace  := mul(matrix4_inverse(cast(Matrix4)scene.camera.view), cameraspace);
+    cameraspace := mul(matrix4_inverse(cast(Matrix4f32)scene.camera.projection), nvec(4, clipspace));
+    worldspace  := mul(matrix4_inverse(cast(Matrix4f32)scene.camera.view), cameraspace);
     return nvec(3, worldspace);
 }

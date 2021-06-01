@@ -38,9 +38,9 @@ make_camera :: proc(pos, dir: [3]f32, move_speed, rotate_speed: f32) -> (cam: Ca
 get_camera_view :: proc(using cam: Camera) -> [4][4]f32
 {
     return cast([4][4]f32)linalg.matrix4_look_at(
-                                                 cast(linalg.Vector3)cam.pos,
-                                                 cast(linalg.Vector3)(cam.pos + cam.dir),
-                                                 cast(linalg.Vector3)cam.up,
+                                                 cast(linalg.Vector3f32)cam.pos,
+                                                 cast(linalg.Vector3f32)(cam.pos + cam.dir),
+                                                 cast(linalg.Vector3f32)cam.up,
                                                  );
 }
 

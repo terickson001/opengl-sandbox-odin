@@ -50,9 +50,9 @@ make_entity :: proc(name: string, m: ^Mesh, mat: ^Material, pos: [3]f32 = {0, 0,
         up := linalg.cross(right, dir);
         
         e.rot = cast(quaternion128)linalg.quaternion_look_at(
-                                                             cast(linalg.Vector3)(pos),
-                                                             cast(linalg.Vector3)(pos+dir),
-                                                             cast(linalg.Vector3)(up)
+                                                             cast(linalg.Vector3f32)(pos),
+                                                             cast(linalg.Vector3f32)(pos+dir),
+                                                             cast(linalg.Vector3f32)(up)
                                                              );
     }
     e.bounds = get_mesh_bounds(m);
@@ -63,9 +63,9 @@ make_entity :: proc(name: string, m: ^Mesh, mat: ^Material, pos: [3]f32 = {0, 0,
 entity_transform :: proc(using e: Entity) -> [4][4]f32
 {
     using linalg;
-    translate := matrix4_translate(cast(Vector3)pos);
-    rotate    := matrix4_from_quaternion(cast(Quaternion)rot);
-    scale_mat := matrix4_scale(cast(Vector3)scale);
+    translate := matrix4_translate(cast(Vector3f32)pos);
+    rotate    := matrix4_from_quaternion(cast(Quaternionf32)rot);
+    scale_mat := matrix4_scale(cast(Vector3f32)scale);
     
     transform := mul(translate, mul(rotate, scale_mat));
     return cast([4][4]f32)transform;

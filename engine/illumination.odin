@@ -89,14 +89,14 @@ start_point_depth_pass :: proc(s: ^Shader)
 setup_point_light_pass :: proc(light: Light, s: ^Shader)
 {
     proj := linalg.matrix4_perspective(linalg.radians(f32(90.0)), 1, 0.1, light.extent);
-    pos := cast(linalg.Vector3)light.pos;
-    matrices: [6]linalg.Matrix4;
-    matrices[0] = linalg.matrix_mul(proj, linalg.matrix4_look_at(pos, pos + { 1, 0, 0}, { 0,-1, 0}));
-    matrices[1] = linalg.matrix_mul(proj, linalg.matrix4_look_at(pos, pos + {-1, 0, 0}, { 0,-1, 0}));
-    matrices[2] = linalg.matrix_mul(proj, linalg.matrix4_look_at(pos, pos + { 0, 1, 0}, { 0, 0, 1}));
-    matrices[3] = linalg.matrix_mul(proj, linalg.matrix4_look_at(pos, pos + { 0,-1, 0}, { 0, 0,-1}));
-    matrices[4] = linalg.matrix_mul(proj, linalg.matrix4_look_at(pos, pos + { 0, 0, 1}, { 0,-1, 0}));
-    matrices[5] = linalg.matrix_mul(proj, linalg.matrix4_look_at(pos, pos + { 0, 0,-1}, { 0,-1, 0}));
+    pos := cast(linalg.Vector3f32)light.pos;
+    matrices: [6]linalg.Matrix4f32;
+    matrices[0] = linalg.matrix_mul(proj, linalg.matrix4_look_at_f32(pos, pos + { 1, 0, 0}, { 0,-1, 0}));
+    matrices[1] = linalg.matrix_mul(proj, linalg.matrix4_look_at_f32(pos, pos + {-1, 0, 0}, { 0,-1, 0}));
+    matrices[2] = linalg.matrix_mul(proj, linalg.matrix4_look_at_f32(pos, pos + { 0, 1, 0}, { 0, 0, 1}));
+    matrices[3] = linalg.matrix_mul(proj, linalg.matrix4_look_at_f32(pos, pos + { 0,-1, 0}, { 0, 0,-1}));
+    matrices[4] = linalg.matrix_mul(proj, linalg.matrix4_look_at_f32(pos, pos + { 0, 0, 1}, { 0,-1, 0}));
+    matrices[5] = linalg.matrix_mul(proj, linalg.matrix4_look_at_f32(pos, pos + { 0, 0,-1}, { 0,-1, 0}));
     set_uniform(s, "shadow_matrices", matrices);
     
     set_uniform(s, "far_plane", light.extent);

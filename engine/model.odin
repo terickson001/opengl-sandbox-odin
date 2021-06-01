@@ -32,7 +32,7 @@ Mesh :: struct
 }
 
 @(private="file")
-is_near :: inline proc(v1: f32, v2: f32) -> bool
+is_near :: #force_inline proc(v1: f32, v2: f32) -> bool
 {
     return abs(v1-v2) < 0.01;
 }
